@@ -109,7 +109,7 @@ p <- plot_pitch(theme = "dark") +
             aes(x = x, y = y, label = number, group = time), 
             size = 3, 
             colour = "black", 
-            fontface = "bold", 
+            fontface = "bold",
             check_overlap = TRUE) + 
   geom_point(data = coordinates_int %>% filter(trackable_object == 55), 
              aes(x = x, 

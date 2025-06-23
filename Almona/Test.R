@@ -99,7 +99,7 @@ possession_data <- tracking_data %>%
   select(frame, possession) %>%
   unnest(cols = c(possession))
 
-# Merge with player details to get player names
+# Merge with player details to get player names 
 possession_with_names <- left_join(possession_data, player_details, by = c("trackable_object"))
 
 # Calculate possession time for each team
