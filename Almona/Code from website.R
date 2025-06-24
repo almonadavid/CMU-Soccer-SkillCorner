@@ -9,8 +9,8 @@ source("https://raw.githubusercontent.com/larsmaurath/keine-mathematik/master/co
 
 
 # Start and end time of the frames we want to plot
-start_time <- "66:00.0"
-end_time <- "67:00.0"
+start_time <- "45:50.0"
+end_time <- "46:10.0"
 half <- 2 # If the times are close to 45min, we need to specify which half we mean
 
 
