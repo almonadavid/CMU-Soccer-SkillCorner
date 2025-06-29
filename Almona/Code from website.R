@@ -9,9 +9,9 @@ source("https://raw.githubusercontent.com/larsmaurath/keine-mathematik/master/co
 
 
 # Start and end time of the frames we want to plot
-start_time <- "45:50.0"
-end_time <- "46:10.0"
-half <- 2 # If the times are close to 45min, we need to specify which half we mean
+start_time <- "37:40.0"
+end_time <- "37:48.0"
+half <- 1 # If the times are close to 45min, we need to specify which half we mean
 
 
 # Load meta data and actual tracking data
@@ -21,7 +21,7 @@ players <- meta[["players"]] %>%
   select(trackable_object, last_name, team_id, number)
 
 tracking <- fromJSON("https://raw.githubusercontent.com/SkillCorner/opendata/master/data/matches/2417/structured_data.json") %>%
-  filter(time > start_time & time < end_time & period == half)
+  filter(time >= start_time & time <= end_time & period == half)
 
 
 # We are looping through frames and concatenate tracking data.
@@ -90,45 +90,32 @@ coordinates_int <- coordinates %>%
 
 
 coordinates_int <- coordinates_int %>%
-  left_join(players, by = "trackable_object" ) %>%
+  left_join(players, by = "trackable_object") %>%
   mutate(team_id = ifelse(trackable_object == 55, 0, team_id)) %>%
-  mutate(time = as.POSIXct(time, format="%M:%OS")) %>%
-  mutate(x = x + 52.5) %>% # necessary conversion for pitch plot function
-  mutate(y = y + 34) %>% # necessary conversion for pitch plot function
+  mutate(x = x + 52.5) %>% 
+  mutate(y = y + 34) %>% 
   filter(!is.na(team_id))
 
 p <- plot_pitch(theme = "dark") +
   geom_point(data = coordinates_int %>% filter(trackable_object != 55), 
-             aes(x = x, 
-                 y = y, 
-                 color = factor(team_id), 
-                 size = factor(team_id), 
-                 group = time, 
-                 alpha = in_broadcast)) +
+             aes(x = x, y = y, color = factor(team_id), size = factor(team_id), 
+                 group = frame, alpha = in_broadcast)) +  # Use frame instead of time
   geom_text(data = coordinates_int, 
-            aes(x = x, y = y, label = number, group = time), 
-            size = 3, 
-            colour = "black", 
-            fontface = "bold",
-            check_overlap = TRUE) + 
+            aes(x = x, y = y, label = number, group = frame), 
+            size = 3, colour = "black", fontface = "bold", check_overlap = TRUE) + 
   geom_point(data = coordinates_int %>% filter(trackable_object == 55), 
-             aes(x = x, 
-                 y = y, 
-                 color = factor(team_id), 
-                 size = factor(team_id), 
-                 group = time, 
-                 alpha = in_broadcast)) +
+             aes(x = x, y = y, color = factor(team_id), size = factor(team_id), 
+                 group = frame, alpha = in_broadcast)) +
   scale_size_manual(values = c("100" = 5, "103" = 5, "0" = 2)) +
   scale_colour_manual(values = c("100" = "#e4070c", "103" = "#f4e422", "0" = "white")) +
   scale_alpha_manual(values = c("TRUE" = 1, "FALSE" = 0.5)) +
-  transition_time(time) + # This info is necessary for our animation
-  theme(legend.position = "none",
-        plot.background = element_rect(fill = "grey20"))
+  transition_time(frame) +  # Use frame for animation
+  theme(legend.position = "none", plot.background = element_rect(fill = "grey20"))
 
 animate(p, nframes = 200, width = 500, height = 460)
 
 
-  ## We can add some more details like a player legend and the logos of the respective teams.
+## We can add some more details like a player legend and the logos of the respective teams.
 bay_img <- "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1b/FC_Bayern_M%C3%BCnchen_logo_%282017%29.svg/1024px-FC_Bayern_M%C3%BCnchen_logo_%282017%29.svg.png"
 
 dor_img <- "https://upload.wikimedia.org/wikipedia/commons/thumb/6/67/Borussia_Dortmund_logo.svg/2000px-Borussia_Dortmund_logo.svg.png"

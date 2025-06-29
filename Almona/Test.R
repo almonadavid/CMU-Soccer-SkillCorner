@@ -1,5 +1,7 @@
+library(tidyverse)
 library(jsonlite)
 library(tidyr)
+library(sf)
 
 
 tracking_data <- fromJSON("C:/Users/almon/OneDrive - Centre College of Kentucky/Desktop/CMSACamp/Capstone/structured_data.json")
@@ -115,3 +117,5 @@ player_possession <- possession_with_names %>%
   summarise(possession_seconds = n() * 0.1) %>%
   arrange(desc(possession_seconds))
 
+
+#=============================================================================
