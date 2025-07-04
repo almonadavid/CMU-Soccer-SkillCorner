@@ -1,3 +1,8 @@
+# library(tidyverse)
+# library(data.table)
+
+
+
 #### Calculating direction ####
 calculate_direction <- function(data, frame_rate = 10) {
   
