@@ -5,5 +5,5 @@ data/
 *.jsonl
 *.Rproj
 *.Rhistory
-
+*.Rproj.user
 
