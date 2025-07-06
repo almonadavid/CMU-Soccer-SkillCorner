@@ -1,5 +1,0 @@
-"0","library(data.table)"
-"0","library(tidyverse)"
-"0","library(dtplyr)"
-"0","homes <- fread('C:/Users/almon/OneDrive - Centre College of Kentucky/Desktop/CMSACamp/ames-housing.csv'"
-"0",") "
