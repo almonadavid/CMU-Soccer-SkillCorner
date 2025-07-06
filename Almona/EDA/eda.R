@@ -86,11 +86,11 @@ player_distance_category <- calculate_speed_zones(tracking_data_update) |>
 
 
 #### GGANIMATE ####
-event_time <- "00:00:00.00"
+event_time <- "00:08:44.00"
 
 target_frame <- tracking_data[timestamp == event_time, frame][1] # find first frame that matched event time
 frames_before <- 0
-frames_after <- 280
+frames_after <- 200
 frame_range <- (target_frame - frames_before):(target_frame + frames_after)
 
 anim_data <- tracking_data_update[frame %in% frame_range]
@@ -120,7 +120,7 @@ p <- ggplot(data = anim_data) +
            y=0-8.75*sin(seq(-0.3*pi,0.3*pi,length.out=30)), col="black") +
   geom_spoke(data = anim_data[speed > 0.5],
              aes(x = x, y = y, angle = direction * pi/180,
-                 radius = speed*1.2),
+                 radius = speed),
              arrow = arrow(length = unit(2, "mm"))) +
   geom_point(data = anim_data, aes(x = x, 
                                    y = y, 
