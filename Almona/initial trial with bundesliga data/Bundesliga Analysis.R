@@ -7,21 +7,24 @@ library(deldir)
 library(grid)
  
 
+#### Run "xml to dataframe.rds" first ####
+
+
 ## Read data and convert to data.table
-match_info = readRDS("C:/Users/almon/OneDrive - Centre College of Kentucky/Desktop/CMSACamp/Capstone/CMU-Soccer-SkillCorner/Almona/bundesliga_match_data/J03WMX_match_info.rds") |> 
+match_info = readRDS("J03WMX_match_info.rds") |> 
   setDT()
 
-players = readRDS("C:/Users/almon/OneDrive - Centre College of Kentucky/Desktop/CMSACamp/Capstone/CMU-Soccer-SkillCorner/Almona/bundesliga_match_data/J03WMX_players.rds") |> 
+players = readRDS("J03WMX_players.rds") |> 
   setDT()
 
-stadium = readRDS("C:/Users/almon/OneDrive - Centre College of Kentucky/Desktop/CMSACamp/Capstone/CMU-Soccer-SkillCorner/Almona/bundesliga_match_data/J03WMX_stadium.rds") |> 
+stadium = readRDS("J03WMX_stadium.rds") |> 
   setDT()
 
-events = readRDS("C:/Users/almon/OneDrive - Centre College of Kentucky/Desktop/CMSACamp/Capstone/CMU-Soccer-SkillCorner/Almona/bundesliga_match_data/J03WMX_events.rds") |> 
+events = readRDS("J03WMX_events.rds") |> 
   setDT() |> 
   _[, event_time := ymd_hms(event_time)] # consistent timezone with positions df
 
-positions = readRDS("C:/Users/almon/OneDrive - Centre College of Kentucky/Desktop/CMSACamp/Capstone/CMU-Soccer-SkillCorner/Almona/bundesliga_match_data/J03WMX_positions.rds") |> 
+positions = readRDS("J03WMX_positions.rds") |> 
   setDT() |> 
   _[, timestamp := ymd_hms(timestamp)] |>  # consistent timezone with events df
   _[, !c("speed", "distance", "acceleration", "m")] # remove these columns

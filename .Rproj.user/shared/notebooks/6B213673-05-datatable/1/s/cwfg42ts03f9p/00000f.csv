@@ -1,0 +1,1 @@
+"0","sales <- homes[, .(sold_ym, SalePrice)]"

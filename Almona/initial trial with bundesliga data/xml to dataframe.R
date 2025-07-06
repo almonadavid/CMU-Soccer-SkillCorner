@@ -6,7 +6,7 @@ library(xml2)
 #_____________________________________________________________
 
 # Read match information
-doc_match <- read_xml("C:/Users/almon/Downloads/28196177/DFL_02_01_matchinformation_DFL-COM-000001_DFL-MAT-J03WMX.xml")
+doc_match <- read_xml("data/Bundesliga data/DFL_02_01_matchinformation_DFL-COM-000001_DFL-MAT-J03WMX.xml")
 
 # Extract match general info
 general <- xml_find_first(doc_match, "//General")
@@ -68,7 +68,7 @@ stadium_df <- tibble(
 #_____________________________________________________________
 
 # Read events file
-doc_events <- read_xml("C:/Users/almon/Downloads/28196177/DFL_03_02_events_raw_DFL-COM-000001_DFL-MAT-J03WMX.xml")
+doc_events <- read_xml("data/Bundesliga data/DFL_03_02_events_raw_DFL-COM-000001_DFL-MAT-J03WMX.xml")
 
 # Extract all events
 events <- xml_find_all(doc_events, "//Event")
@@ -147,7 +147,7 @@ events_detailed_df <- bind_cols(
 #_____________________________________________________________
 
 # Read positions file structure first
-doc_position <- read_xml("C:/Users/almon/Downloads/28196177/DFL_04_03_positions_raw_observed_DFL-COM-000001_DFL-MAT-J03WMX.xml")
+doc_position <- read_xml("data/Bundesliga data/DFL_04_03_positions_raw_observed_DFL-COM-000001_DFL-MAT-J03WMX.xml")
 
 # Count framesets to estimate data size
 framesets <- xml_find_all(doc_position, "//FrameSet")

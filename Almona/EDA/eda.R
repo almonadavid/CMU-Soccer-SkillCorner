@@ -1,56 +1,24 @@
-library(tidyverse) # Data manipulation and visualization
-library(data.table) # Handling large data, fast and memory efficient
-library(jsonlite) # Loading JSON/JSONL files
-library(sf) # Spatial analysis
-library(gganimate) # Plot animation
-library(purrr)
+library(tidyverse)
+library(data.table)
+library(jsonlite)
+library(gganimate)
 
+
+
+################################################################
+##        PSA: Run eda_functions.R before proceeding          ##
+################################################################
 
 #### Read JSONL file ####  
-tracking_data <- stream_in(file("C:/Users/almon/Downloads/Charlotte Sample Data/1832186_tracking_extrapolated.jsonl"))
+tracking_data <- stream_in(file("data/SkillCorner data/1832186_tracking_extrapolated.jsonl"))
 tracking_data <- tracking_data |> 
   unnest(cols = c(player_data)) |>
   as.data.table()
 
 
 #### Get Player Information ####
-match_info <- fromJSON("C:/Users/almon/Downloads/Charlotte Sample Data/1832186_match.json", simplifyDataFrame = FALSE)
-match_info_df <- fromJSON("C:/Users/almon/Downloads/Charlotte Sample Data/1832186_match.json")
-
-players_info <- match_info_df$players |> 
-  as.data.table()
-
-
-#### Read event file ####
-events <- read_csv("C:/Users/almon/Downloads/Charlotte Sample Data/1832186_dynamic_events.csv") |>
-  mutate(
-    player_in_possession_name = ifelse(event_type == "player_possession", player_name, player_in_possession_name)
-  ) |> 
-  left_join(
-    players_info |> select(short_name, id),
-    join_by(player_name == short_name)) |> 
-  mutate(
-    player_in_possession_id = ifelse(is.na(player_in_possession_id), id, player_in_possession_id)
-  )
-  select(-short_name, -id) |> 
-  as.data.table()
-
-  
-test <- events |>
-  select(event_id, frame_start, frame_end, time_start, time_end, event_type, player_name, team_id, starts_with("player_in_possession"))
-  
-  
-tracking_data <- tracking_data |> 
-  left_join(
-    players_info |> select(id, team_id, number, short_name), 
-    join_by(player_id == id))
-
-
-
-################################################################
-##           PSA: Run Functions.R before proceeding           ##
-################################################################
-
+match_info <- fromJSON("data/SkillCorner data/1832186_match.json", simplifyDataFrame = FALSE)
+match_info_df <- fromJSON("data/SkillCorner data/1832186_match.json")
 
 
 ################################################################
@@ -110,10 +78,10 @@ player_distance <- calculate_distance_covered(tracking_data_update) |>
   select(short_name, team_id, total_distance, total_distance_km)
 
 
-#### Distance covered walking, jogging, running and sprinting + number of sprints ####
+#### Distance covered at different speed zones ####
 player_distance_category <- calculate_speed_zones(tracking_data_update) |> 
-  select(short_name, player_id, team_id, distance_walking, distance_jogging, distance_running, 
-         distance_sprinting, total_distance, sustained_sprints, max_speed, avg_speed)
+  select(short_name, player_id, team_id, distance_jogging, distance_running, 
+         distance_hsr, distance_sprinting, total_distance, sustained_sprints, max_speed, avg_speed)
 
 
 
@@ -165,17 +133,10 @@ p <- ggplot(data = anim_data) +
                                    color = "BALL"), 
              size = 3, alpha = 0.9) +
   coord_fixed() +
-  # scale_color_discrete(labels = c("DFL-CLU-000008" = "1. FC Köln", "DFL-CLU-00000G" = "FC Bayern München")) +
-  # labs(
-  #   #caption = "25 Hz",
-  #   caption = "1. FC Köln vs FC Bayern München | Bundesliga Matchday 34, 2022/2023 Season | May 27, 2023 | Final Score: 1-2"
-  # ) +
+  # scale_color_discrete(...) +
+  # labs(...) +
   theme_void() +
-  # theme(
-  #   legend.position = "top",
-  #   legend.title = element_blank(),
-  #   plot.caption = element_text(hjust = 0.5, size = 10, color = "black")
-  # ) +
+  # theme(...) +
   transition_time(frame)
 
 # Render the animation
@@ -183,26 +144,3 @@ play <- animate(p, nframes = length(frame_range), fps = 20, width = 800, height 
 
 # Display the animation
 play
- 
-
-
-
-################################################################
-##              Pressing/Pressure in Soccer                   ##
-################################################################
-
-#### Find ball carrier for any given frame ####
-unique_frames <- sort(unique(tracking_data_update$frame))
-ball_carrier_df <- map_dfr(unique_frames, ~ get_ball_carrier(.x, events)) # This will take a LONG while
-
-#### Approach Velocity Calculation ####
-approach_velocity_results <- calculate_approach_velocity(
-  tracking_data = tracking_data_update,
-  ball_carrier_df = ball_carrier_df,
-  frame_rate = 10
-)
-
-
-
-
-

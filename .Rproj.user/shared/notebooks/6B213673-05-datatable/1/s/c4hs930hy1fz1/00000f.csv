@@ -1,0 +1,1 @@
+"0","homes_sub <- homes[,.(Year.Built, Mo.Sold, Yr.Sold, SalePrice)]"

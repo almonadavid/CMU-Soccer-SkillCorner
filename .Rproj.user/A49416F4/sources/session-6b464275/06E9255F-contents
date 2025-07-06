@@ -67,27 +67,29 @@ calculate_distance_covered <- function(data) {
   return(distance_covered)
 }
 
-#### Distance covered walking, jogging, running and sprinting + number of sprints ####
+#### Distance covered at different speed zones ####
 calculate_speed_zones <- function(data, frame_rate = 10) {
   
-  # Speed thresholds (m/s)
-  walking_max <- 2.0
-  jogging_max <- 4.0  
-  running_max <- 5.5 # {not to self: adjust this to match SkillCorner metrics}
+  # Speed bands from SkillCorner in m/s (converted from km/h)
+  jogging_max <- 4.16667 # ~ 15km/h
+  running_max <- 5.55556 # ~ 20km/h  
+  hsr_max <- 6.94444 # ~ 25km/h
+  # sprinting > 25km/h
   
-  # Minimum frames for sustained sprint (1.5 seconds = ~37 frames at 25Hz)
-  min_sprint_frames <- round(1.5 * frame_rate)
+  
+  # Minimum frames for sustained sprint (1 seconds = ~10 frames at 10Hz)
+  min_sprint_frames <- round(1 * frame_rate)
   
   speed_analysis <- data[order(player_id, frame)][, `:=`(
     speed_zone = fcase(
       is.na(speed), "unknown",
-      speed <= walking_max, "walking",
       speed <= jogging_max, "jogging", 
       speed <= running_max, "running",
-      speed > running_max, "sprinting",
+      speed <= hsr_max, "hsr",
+      speed > hsr_max, "sprinting",
       default = "unknown"
     ), 
-    is_sprinting = speed > running_max & !is.na(speed)
+    is_sprinting = speed > hsr_max & !is.na(speed)
   ), by = player_id][, `:=`(
     sprint_group = cumsum(!is_sprinting | (is_sprinting & shift(is_sprinting, fill = FALSE) == FALSE))
   ), by = player_id][, `:=`(
@@ -96,16 +98,16 @@ calculate_speed_zones <- function(data, frame_rate = 10) {
   ), by = .(player_id, sprint_group)][, .(
     short_name = first(short_name),       
     team_id = first(team_id), 
-    distance_walking = sum(ifelse(speed_zone == "walking", distance, 0), na.rm = TRUE),
     distance_jogging = sum(ifelse(speed_zone == "jogging", distance, 0), na.rm = TRUE),
     distance_running = sum(ifelse(speed_zone == "running", distance, 0), na.rm = TRUE),
+    distance_hsr = sum(ifelse(speed_zone == "hsr", distance, 0), na.rm = TRUE),
     distance_sprinting = sum(ifelse(speed_zone == "sprinting", distance, 0), na.rm = TRUE),
     total_distance = sum(distance, na.rm = TRUE),
     sustained_sprints = length(unique(sprint_group[is_sustained_sprint])),
     max_speed = max(speed, na.rm = TRUE),
     avg_speed = mean(speed, na.rm = TRUE)
-  ), by = player_id][, .(short_name, player_id, team_id, distance_walking, distance_jogging, distance_running, 
-                         distance_sprinting, total_distance, sustained_sprints, max_speed, avg_speed)]
+  ), by = player_id][, .(short_name, player_id, team_id, distance_jogging, distance_running, 
+                         distance_hsr, distance_sprinting, total_distance, sustained_sprints, max_speed, avg_speed)]
   
   return(speed_analysis)
 }

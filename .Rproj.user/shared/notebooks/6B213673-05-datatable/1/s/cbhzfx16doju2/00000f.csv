@@ -1,0 +1,1 @@
+"0","homes[, sold_ym := as.Date(paste(Yr.Sold, Mo.Sold, ""01"", sep = ""-"", ""%Y-%m-%d""))]"

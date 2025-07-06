@@ -1,0 +1,1 @@
+"0","sales <- sales[, .(avg_SalePrice = mean(SalePrice)), by = sold_ym]"

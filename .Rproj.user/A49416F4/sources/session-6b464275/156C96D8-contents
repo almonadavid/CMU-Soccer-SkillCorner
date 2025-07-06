@@ -1,0 +1,247 @@
+library(tidyverse) # Data manipulation and visualization
+library(data.table) # Handling large data, fast and memory efficient
+library(jsonlite) # Loading JSON/JSONL files
+library(sf) 
+library(gganimate) # Plot animation
+library(purrr)
+library(deldir)
+
+
+#### Read JSONL file ####  
+tracking_data <- stream_in(file("C:/Users/almon/Downloads/Charlotte Sample Data/1832186_tracking_extrapolated.jsonl"))
+tracking_data <- tracking_data |> 
+  unnest(cols = c(player_data)) |>
+  as.data.table()
+
+
+#### Get Player Information ####
+match_info <- fromJSON("C:/Users/almon/Downloads/Charlotte Sample Data/1832186_match.json", simplifyDataFrame = FALSE)
+match_info_df <- fromJSON("C:/Users/almon/Downloads/Charlotte Sample Data/1832186_match.json")
+
+players_info <- match_info_df$players |> 
+  as.data.table()
+
+
+#### Read event file ####
+events <- read_csv("C:/Users/almon/Downloads/Charlotte Sample Data/1832186_dynamic_events.csv") |>
+  mutate(
+    player_in_possession_name = ifelse(event_type == "player_possession", player_name, player_in_possession_name)
+  ) |> 
+  left_join(
+    players_info |> select(short_name, id),
+    join_by(player_name == short_name)) |> 
+  mutate(
+    player_in_possession_id = ifelse(is.na(player_in_possession_id), id, player_in_possession_id)
+  ) |> 
+  select(-id) |> 
+  as.data.table()
+
+  
+tracking_data <- tracking_data |> 
+  left_join(
+    players_info |> select(id, team_id, number, short_name), 
+    join_by(player_id == id))
+
+
+
+################################################################
+##           PSA: Run Functions.R before proceeding           ##
+################################################################
+
+
+
+################################################################
+##              Exploratory Data Analysis (EDA)               ##
+################################################################
+
+
+#### Get Team Information ####
+home_team_name <- match_info$home_team$name
+away_team_name <- match_info$away_team$name
+
+print(paste("Home Team:", home_team_name))
+print(paste("Away Team:", away_team_name))
+
+
+#### Get the lineups for each team ####
+home_team_id <- match_info_df$home_team$id
+away_team_id <- match_info_df$away_team$id
+
+home_players <- players_info[players_info$team_id == home_team_id, ]
+away_players <- players_info[players_info$team_id == away_team_id, ]
+
+# Home team lineup
+home_lineup <- home_players[, `:=` (
+  Name = first_name,
+  Surname = last_name,
+  Role = player_role.acronym
+)][, .(Name, Surname, Role)]
+
+# Away team lineup
+away_lineup <- away_players[, `:=` (
+  Name = first_name,
+  Surname = last_name,
+  Role = player_role.acronym
+)][, .(Name, Surname, Role)]
+
+
+#### Get Referee and Pitch Information ####
+referee_info <- match_info_df$referees
+
+pitch_length <- match_info_df$pitch_length
+pitch_width <- match_info_df$pitch_width
+print(paste("Pitch Dimensions:", pitch_length, "m x", pitch_width, "m"))
+
+
+#### Calculate distance, direction, speed, acceleration ####
+tracking_data_update <- calculate_direction(tracking_data)
+
+
+#### Calculating minutes played (considering VAR stoppages and extra time, represents time spent on the pitch, not necessarily game time played) ####
+game_time <- calculate_minutes_played(tracking_data) |> 
+  select(short_name, team_id, minutes_played)
+
+
+## Calculate distance covered by each player
+player_distance <- calculate_distance_covered(tracking_data_update) |> 
+  select(short_name, team_id, total_distance, total_distance_km)
+
+
+#### Distance covered at different speed zones ####
+player_distance_category <- calculate_speed_zones(tracking_data_update) |> 
+  select(short_name, player_id, team_id, distance_jogging, distance_running, 
+         distance_hsr, distance_sprinting, total_distance, sustained_sprints, max_speed, avg_speed)
+
+
+
+#### GGANIMATE ####
+event_time <- "00:00:00.00"
+
+target_frame <- tracking_data[timestamp == event_time, frame][1] # find first frame that matched event time
+frames_before <- 0
+frames_after <- 280
+frame_range <- (target_frame - frames_before):(target_frame + frames_after)
+
+anim_data <- tracking_data_update[frame %in% frame_range]
+
+
+# Create the animated plot
+p <- ggplot(data = anim_data) +
+  annotate("rect",xmin = -52.5, xmax = 52.5, ymin = -34, ymax = 34, fill = NA, colour = "black", size = 0.6) +
+  annotate("rect",xmin = -52.5, xmax = 0, ymin = -34, ymax = 34, fill = NA, colour = "black", size = 0.6) +
+  annotate("rect",xmin = -52.5, xmax = -36.75, ymin = -18.7, ymax = 18.7, fill = NA, colour = "black", size = 0.6) +
+  annotate("rect",xmin = 36.75, xmax = 52.5, ymin = -18.7, ymax = 18.7, fill = NA, colour = "black", size = 0.6) +
+  annotate("rect",xmin = -52.5, xmax = -47.25, ymin = -8.5, ymax = 8.5, fill = NA, colour = "black", size = 0.6) +
+  annotate("rect",xmin = 52.5, xmax = 47.25, ymin = -8.5, ymax = 8.5, fill = NA, colour = "black", size = 0.6) +
+  annotate("rect",xmin = 52.5, xmax = 53, ymin = -3.4, ymax = 3.4, fill = NA, colour = "black", size = 0.6) +
+  annotate("rect",xmin = -52.5, xmax = -53, ymin = -3.4, ymax = 3.4, fill = NA, colour = "black", size = 0.6) +
+  annotate("segment", x = 0, xend = 0, y = -34.5, yend = 34.5, colour = "black", size = 0.6)+
+  annotate("segment", x = -52.5, xend = -52.5, y = -34, yend = 34, colour = "black", size = 0.6)+
+  annotate("segment", x = 52.5, xend = 52.5, y = -34, yend = 34, colour = "black", size = 0.6)+
+  annotate("point", x = -42 , y = 0, colour = "black", size = 1.05) +
+  annotate("point", x = 42 , y = 0, colour = "black", size = 1.05) +
+  annotate("path", colour = "black", size = 0.6, x=0+8.75*cos(seq(0,2*pi,length.out=2000)),
+           y=0+8.75*sin(seq(0,2*pi,length.out=2000))) +
+  annotate("point", x = 0 , y = 0, colour = "black", size = 1.05) +
+  annotate("path", x=-42+8.75*cos(seq(-0.3*pi,0.3*pi,length.out=30)), size = 0.6,
+           y=0+8.75*sin(seq(-0.3*pi,0.3*pi,length.out=30)), col="black") +
+  annotate("path", x=42-8.75*cos(seq(-0.3*pi,0.3*pi,length.out=30)), size = 0.6,
+           y=0-8.75*sin(seq(-0.3*pi,0.3*pi,length.out=30)), col="black") +
+  geom_spoke(data = anim_data[speed > 0.5],
+             aes(x = x, y = y, angle = direction * pi/180,
+                 radius = speed*1.2),
+             arrow = arrow(length = unit(2, "mm"))) +
+  geom_point(data = anim_data, aes(x = x, 
+                                   y = y, 
+                                   color = as.factor(team_id)), 
+             size = 6, alpha = 0.9) +
+  geom_text(data = anim_data, aes(x = x, y = y, label = number), 
+            size = 5, color = "black") + 
+  geom_point(data = anim_data, aes(x = ball_data.x, 
+                                   y = ball_data.y,
+                                   color = "BALL"), 
+             size = 3, alpha = 0.9) +
+  coord_fixed() +
+  # scale_color_discrete(labels = c("DFL-CLU-000008" = "1. FC Köln", "DFL-CLU-00000G" = "FC Bayern München")) +
+  # labs(
+  #   #caption = "25 Hz",
+  #   caption = "1. FC Köln vs FC Bayern München | Bundesliga Matchday 34, 2022/2023 Season | May 27, 2023 | Final Score: 1-2"
+  # ) +
+  theme_void() +
+  # theme(
+  #   legend.position = "top",
+  #   legend.title = element_blank(),
+  #   plot.caption = element_text(hjust = 0.5, size = 10, color = "black")
+  # ) +
+  transition_time(frame)
+
+# Render the animation
+play <- animate(p, nframes = length(frame_range), fps = 20, width = 800, height = 600)
+
+# Display the animation
+play
+ 
+
+
+
+################################################################
+##              Pressing/Pressure in Soccer                   ##
+################################################################
+
+#### Find ball carrier for any given frame ####
+unique_frames <- sort(unique(tracking_data_update$frame))
+ball_carrier_df <- map_dfr(unique_frames, ~ get_ball_carrier(.x, events)) # This will take a LONG while
+
+#### Approach Velocity Calculation ####
+approach_velocity_results <- calculate_approach_velocity(
+  tracking_data = tracking_data_update,
+  ball_carrier_df = ball_carrier_df,
+  frame_rate = 10
+)
+
+
+#### Individual pressing stats ####
+individual_pressing_stats <- approach_velocity_results %>%
+  arrange(pressing_defender_id, frame) %>%
+  group_by(pressing_defender_id, pressing_defender_name) %>%
+  mutate(
+    frame_diff = frame - lag(frame, default = first(frame) - 2),
+    new_sequence = frame_diff > 1,  # Gap of more than 1 frame = new sequence
+    sequence_id = cumsum(new_sequence)
+  ) %>%
+  summarise(
+    total_pressing_sequences = max(sequence_id),
+    total_pressing_frames = n(),
+    avg_sequence_length = total_pressing_frames / total_pressing_sequences,
+    avg_approach_velocity = mean(approach_velocity, na.rm = TRUE),
+    max_approach_velocity = max(approach_velocity, na.rm = TRUE),
+    avg_distance_when_pressing = mean(distance_to_ball_carrier, na.rm = TRUE),
+    min_distance_achieved = min(distance_to_ball_carrier, na.rm = TRUE),
+    pressing_time_seconds = total_pressing_frames / 10,
+    pressing_time_minutes = pressing_time_seconds / 60,
+    avg_sequence_duration_seconds = pressing_time_seconds / total_pressing_sequences,
+    .groups = "drop"
+  ) %>%
+  arrange(desc(total_pressing_sequences)) %>%
+  mutate(
+    avg_approach_velocity = round(avg_approach_velocity, 2),
+    max_approach_velocity = round(max_approach_velocity, 2),
+    avg_distance_when_pressing = round(avg_distance_when_pressing, 2),
+    min_distance_achieved = round(min_distance_achieved, 2),
+    avg_sequence_length = round(avg_sequence_length, 1),
+    pressing_time_minutes = round(pressing_time_minutes, 2),
+    avg_sequence_duration_seconds = round(avg_sequence_duration_seconds, 1)
+  )
+
+
+################################################################
+##              TESTING                   ##
+################################################################
+
+
+test <- events |>
+  select(event_id, frame_start, frame_end, event_type, player_name, passing_option_at_pass_moment, team_id,
+         player_in_possession_name, n_passing_options, associated_player_possession_event_id)
+
+
+
