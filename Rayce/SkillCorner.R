@@ -54,6 +54,38 @@ library(readr)
 phillyatlanta <- read_csv("../Downloads/Philly:Atlanta/1141349_dynamic_events.csv")
 
 
+
+
+################Joining################################
+library(dplyr)
+library(fuzzyjoin)
+library(tidyverse)
+
+runsjoin <- PhillyAtlanta %>%
+  filter(event_type == "off_ball_run") %>%
+  select(run_frame = frame_start, frame_end, event_type, event_subtype, n_simultaneous_runs)
+
+
+possessionjoin <- PhillyAtlanta %>%
+  filter(event_type == "player_possession") %>%
+  mutate(sep_created = separation_end - separation_start) %>%
+  select(possession_frame_start = frame_start,
+         possession_frame_end = frame_end,
+         sep_created)
+
+
+possession_with_runs <- fuzzy_left_join(
+  possessionjoin,
+  runsjoin,
+  by = c("possession_frame_start" = "run_frame",
+         "possession_frame_end" = "run_frame"),
+  match_fun = list(`<=`, `>=`)
+)
+
+
+
+
+
 ##Separation created by different types of runs
 library(dplyr)
 runs<-PhillyAtlanta |>
