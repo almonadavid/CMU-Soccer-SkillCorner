@@ -120,27 +120,34 @@ calculate_approach_velocity <- function(tracking_data, ball_carrier_df, frame_ra
 }
 
 #### Criteria-Baed Pressing Detection ####
-detect_pressing_action <- function(tracking_data, ball_carrier_df, frame_rate = 10) {
+detect_pressing_action <- function(tracking_data, ball_carrier_df,
+                                   frame_rate = 10,
+                                   press_distance = 6,
+                                   initial_distance = 4,
+                                   approach_vel_threshold = 1.0,
+                                   close_approach_vel = 0.3,
+                                   defender_speed_threshold = 2.0) {
   
   enhanced_data <- calculate_approach_velocity(tracking_data, ball_carrier_df, frame_rate)
   enhanced_data <- enhanced_data[order(player_id, frame)]
   
   # Look at movement patterns over multiple frames
   enhanced_data[, `:=`(
-    avg_approach_velocity_3f = frollmean(approach_velocity, n = 3, align = "right"), # 3 frames (0.3 seconds)
+    avg_approach_velocity_3f = frollmean(approach_velocity, n = 3, align = "right"),
     recent_approach_count = frollsum(moving_toward_ball, n = 5, align = "right"),
-    approach_acceleration = (approach_velocity - shift(approach_velocity, type = "lag")) * frame_rate, # Acceleration toward ball carrier
-    defender_speed = sqrt(vel_x^2 + vel_y^2) # Speed of defender
+    approach_acceleration = (approach_velocity - shift(approach_velocity, type = "lag")) * frame_rate, # acceleration toward ball carrier
+    defender_speed = sqrt(vel_x^2 + vel_y^2)
   ), by = player_id]
   
   # Pressing criteria
   enhanced_data[, `:=`(
-    within_press_distance = distance_to_ball_carrier <= 6,
-    initial_approach = distance_to_ball_carrier > 4 & approach_velocity > 1.0, 
-    close_engagement = distance_to_ball_carrier <= 4 & (
-      approach_velocity > 0.3 | 
-        recent_approach_count >= 2 | 
-        defender_speed > 2.0 
+    within_press_distance = distance_to_ball_carrier <= press_distance,
+    initial_approach = distance_to_ball_carrier > initial_distance & approach_velocity > approach_vel_threshold,
+    close_engagement = distance_to_ball_carrier <= initial_distance & (
+      approach_velocity > close_approach_vel | 
+        recent_approach_count >= 3 | 
+        defender_speed > defender_speed_threshold |
+        approach_acceleration > 0.5
     )
   )]
   
