@@ -54,12 +54,22 @@ library(readr)
 phillyatlanta <- read_csv("../Downloads/Philly:Atlanta/1141349_dynamic_events.csv")
 
 
+##Separation created by different types of runs
+library(dplyr)
+runs<-PhillyAtlanta |>
+  filter(event_type == "off_ball_run") |>
+  select(frame_start, frame_end, event_type, event_subtype) 
+
+possession<-PhillyAtlanta |>
+  filter(event_type == "player_possession")|>
+  mutate(sep_created = separation_end - separation_start) |>
+  select(frame_start, frame_end, sep_created, n_simulatneous_runs)
+  
 
 
-################Joining################################
 library(dplyr)
 library(fuzzyjoin)
-library(tidyverse)
+
 
 runsjoin <- PhillyAtlanta %>%
   filter(event_type == "off_ball_run") %>%
@@ -86,12 +96,6 @@ possession_with_runs <- fuzzy_left_join(
 
 
 
-##Separation created by different types of runs
-library(dplyr)
-runs<-PhillyAtlanta |>
-  filter(event_type == "off_ball_run") 
-possession<-PhillyAtlanta |>
-  filter(event_type == "player_possession")
 
 bestruns <- PhillyAtlanta |>
   filter(event_type == "off_ball_run") |>
