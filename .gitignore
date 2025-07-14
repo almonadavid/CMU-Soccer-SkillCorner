@@ -6,3 +6,4 @@ data/
 *.Rhistory
 *.Rproj.user
 
+.Rproj.user
