@@ -1,11 +1,11 @@
 library(tidyverse)
-library(ranger)
-library(vip)
+
+
 library(stacks)
 library(xgboost)
 library(caret)
 library(glmnet)
-library(tidymodels)
+
 library(tictoc)
 
 
@@ -21,21 +21,11 @@ pressing_data <- as.data.table(read.csv("results/all_games_pressing_sequences.cs
 #### DATA FOR MODELING ####
 
 # exclude pressing sequence that last just 1 frame (0.1s), could be noise
-pressing_data <- pressing_data[sequence_duration_frames > 1]
+pressing_data <- pressing_sequences[sequence_duration_frames > 1]
 
 # removing non-essential columns for modeling
-pressing_data <- pressing_data[, !c(
-  "game_id",
-  "possession_team",
-  "player_in_possession_id",
-  "sequence_id",
-  "sequence_start_frame",
-  "sequence_end_frame",
-  "sequence_duration_frames",
-  "opponent_team_score",
-  "team_score"
-), with = FALSE]
-
+cols_to_remove <- which(names(pressing_data) == "sequence_id"):which(names(pressing_data) == "player_in_possession_name")
+pressing_data <- pressing_data[, -cols_to_remove, with = FALSE]
 
 
 
@@ -43,12 +33,57 @@ pressing_data <- pressing_data[, !c(
 #### Elastic Net ####
 
 
-#### Random forest ####
+#### Random forest #### no tuning
+library(ranger)
+pressing_rf <- ranger(forced_turnover_within_5s ~ ., 
+                      num.trees = 1000,
+                      classification = TRUE,
+                      probability = TRUE,
+                      importance = "impurity", # try "permutation"???
+                      data = pressing_data)
+library(vip)
+vip(pressing_rf)
+
+pressing_data |> 
+  mutate(pred = pressing_rf$predictions) |> 
+  summarize(rmse = sqrt(mean((forced_turnover_within_5s - pred) ^ 2))) # RMSE
+
+#### tidymodels ####
+library(tidymodels)
+
+set.seed(123)
+pressing_split <- initial_split(pressing_data, strata = forced_turnover_within_5s)
+pressing_train <- training(pressing_split)
+pressing_test <- testing(pressing_split)
 
 
-# RMSE
+set.seed(456)
+pressing_folds <- vfold_cv(pressing_train, strata = forced_turnover_within_5s)
+pressing_folds
 
-# check tidymodels on slide 16 of boosting
+
+usemodels::use_ranger(forced_turnover_within_5s ~ ., data = pressing_train)
+# Copy code from console
+ranger_recipe <- 
+  recipe(formula = forced_turnover_within_5s ~ ., data = pressing_train) 
+
+ranger_spec <- 
+  rand_forest(trees = 1000) %>% 
+  set_mode("classification") %>% 
+  set_engine("ranger") 
+
+ranger_workflow <- 
+  workflow() %>% 
+  add_recipe(ranger_recipe) %>% 
+  add_model(ranger_spec) 
+
+doParallel::registerDoParallel()
+set.seed(98631)
+ranger_tune <-
+  fit_resamples(ranger_workflow, 
+            resamples = pressing_folds,
+            control = control_resamples(save_pred = TRUE))
+
 
 #### XGBoost ####
 

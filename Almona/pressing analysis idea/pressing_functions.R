@@ -1,41 +1,55 @@
 library(tidyverse)
 
 
-#### Calculating direction ####
-calculate_direction <- function(data, frame_rate = 10) {
+# Parameters are defined as arguments in function rather than hardcoded within for easier manipulation
+
+#### Calculating metrics ####
+calculate_metrics <- function(data, frame_rate = 10,
+                              max_realistic_speed = 11.9,       # Usain Bolt max speed was 12 m/s
+                              max_realistic_accel = 10.0,       # m/s²
+                              outlier_percentile = 0.999,       # Remove top 0.001%
+                              speed_smooth_window = 3,          # Window for speed smoothing
+                              accel_smooth_window = 5) {        # Window for acceleration smoothing
   
-  result <- data[order(player_id, frame)][, `:=`(
-    dx = x - shift(x, type = "lag"),
-    dy = y - shift(y, type = "lag")
-  ), by = player_id][, `:=`(
+  result <- copy(data)
+  setorder(result, player_id, frame)
+  
+  result[, `:=`(
+    dx = x - data.table::shift(x, type = "lag"),
+    dy = y - data.table::shift(y, type = "lag")
+  ), by = player_id]
+  
+  result[, `:=`(
     distance = sqrt(dx^2 + dy^2),
     direction = atan2(dy, dx) * 180 / pi,
     speed = sqrt(dx^2 + dy^2) * frame_rate
-  )][, `:=`(
-    acceleration = (speed - shift(speed, type = "lag")) * frame_rate
-  ), by = player_id]
+  )]
   
+  result[, acceleration := (speed - data.table::shift(speed, type = "lag")) * frame_rate, 
+         by = player_id]
   
-  # Data cleaning for extreme values
-  max_realistic_speed <- 11.9  # Usain Bolt max speed was 12 m/s
-  max_realistic_accel <- 10.0  # m/s² 
+  # Handle extreme values
   max_distance_per_frame <- max_realistic_speed / frame_rate
   
+  # Remove physically impossible values
+  result[distance > max_distance_per_frame, distance := NA]  # Remove "teleporting"
+  result[speed > max_realistic_speed | speed < 0, speed := NA]  # Remove impossible speeds
+  result[abs(acceleration) > max_realistic_accel, acceleration := NA]  # Remove impossible accelerations
+  
+  # Remove statistical outliers
+  speed_999 <- quantile(result$speed, outlier_percentile, na.rm = TRUE)
+  accel_999 <- quantile(abs(result$acceleration), outlier_percentile, na.rm = TRUE)
+  
+  result[speed > speed_999, speed := NA]
+  result[abs(acceleration) > accel_999, acceleration := NA]
+  
+  result[is.na(speed), distance := NA]
+  
+  # Add smoothing
   result[, `:=`(
-    distance = ifelse(distance > max_distance_per_frame, NA, distance), # Remove impossible distances ('teleporting')
-    speed = ifelse(speed > max_realistic_speed | speed < 0, NA, speed), # Remove impossible speeds 
-    acceleration = ifelse(abs(acceleration) > max_realistic_accel, NA, acceleration) # Remove impossible accelerations 
-  )]
-  
-  speed_999 <- quantile(result$speed, 0.999, na.rm = TRUE)
-  accel_999 <- quantile(abs(result$acceleration), 0.999, na.rm = TRUE)
-  
-  result[, `:=`(
-    speed = ifelse(speed > speed_999, NA, speed),
-    acceleration = ifelse(abs(acceleration) > accel_999, NA, acceleration)
-  )]
-  
-  result[, distance := ifelse(is.na(speed), NA, distance)]
+    speed_smooth = frollmean(speed, n = speed_smooth_window, align = "center"),
+    acceleration_smooth = frollmean(acceleration, n = accel_smooth_window, align = "center")
+  ), by = player_id]
   
   return(result)
 }
@@ -45,7 +59,7 @@ get_ball_carrier <- function(frames, events) {
   
   setDT(events)
   
-  frames_dt <- data.table(frame = frames) # store all frames with data.table
+  frames_dt <- data.table(frame = frames) # store all frames
   
   player_poss <- events[event_type == "player_possession"]
   
@@ -62,17 +76,33 @@ get_ball_carrier <- function(frames, events) {
 }
 
 #### Approach Velocity with Distance Weighting ####
-calculate_approach_velocity <- function(tracking_data, ball_carrier_df, frame_rate = 10) {
+calculate_approach_velocity <- function(tracking_data, ball_carrier_df, 
+                                        frame_rate = 10,
+                                        max_realistic_speed = 11.9,      # m/s
+                                        max_press_distance = 15, #????        # meters
+                                        approach_threshold = 1,          # m/s threshold for moving toward ball
+                                        weight_min_distance = 2,         # Distance weight parameters
+                                        weight_max_distance = 10) {      # Distance weight parameters
   
   setDT(tracking_data)
   setDT(ball_carrier_df)
   
-  # Calculate velocities for each player
+  # Calculate velocities for each player # ## USE SMOOTHED SPEED CALCULATED FROM calculate_metrics #####################
   tracking_data <- tracking_data[order(player_id, frame)]
   tracking_data[, `:=`(
-    vel_x = (x - shift(x, type = "lag")) * frame_rate,
-    vel_y = (y - shift(y, type = "lag")) * frame_rate
+    vel_x = (x - data.table::shift(x, type = "lag")) * frame_rate,
+    vel_y = (y - data.table::shift(y, type = "lag")) * frame_rate
   ), by = player_id]
+  
+  # Handle extreme values
+  tracking_data[, `:=`(
+    vel_magnitude = sqrt(vel_x^2 + vel_y^2)
+  )]
+  tracking_data[vel_magnitude > max_realistic_speed | is.na(vel_magnitude), `:=`(
+    vel_x = NA,
+    vel_y = NA
+  )]
+  tracking_data[, vel_magnitude := NULL] 
   
   # Merge ball carrier info to tracking data
   tracking_with_possession <- tracking_data[ball_carrier_df, on = "frame"]
@@ -99,7 +129,7 @@ calculate_approach_velocity <- function(tracking_data, ball_carrier_df, frame_ra
   )]
   
   # Filter defenders within pressing distance
-  close_defenders <- defenders[distance_to_ball_carrier <= 20]
+  close_defenders <- defenders[distance_to_ball_carrier <= max_press_distance]
   
   # Calculate approach velocity
   close_defenders[, `:=`(
@@ -110,33 +140,42 @@ calculate_approach_velocity <- function(tracking_data, ball_carrier_df, frame_ra
   )]
   
   close_defenders[, approach_velocity := -(rel_vel_x * r_hat_x + rel_vel_y * r_hat_y)]
-  
+
+  # Calculate angle from ball carrier to defender
+  close_defenders[, angle_from_ball_carrier_to_defender := atan2(-dy, -dx) * 180 / pi]
+
   # Distance-weighted approach velocity, giving more weight to approach velocity when further away
-  close_defenders[, distance_weight := pmin(1, pmax(0, (distance_to_ball_carrier - 2) / 8))]
+  weight_range <- weight_max_distance - weight_min_distance
+  close_defenders[, distance_weight := pmin(1, pmax(0, (distance_to_ball_carrier - weight_min_distance) / weight_range))]
   close_defenders[, weighted_approach_velocity := approach_velocity * distance_weight]
-  close_defenders[, moving_toward_ball := approach_velocity > 0.5]
+  close_defenders[, moving_toward_ball := approach_velocity > approach_threshold]
   
   return(close_defenders)
 }
 
-#### Criteria-Baed Pressing Detection ####
+#### Criteria-Based Pressing Detection ####
 detect_pressing_action <- function(tracking_data, ball_carrier_df,
                                    frame_rate = 10,
                                    press_distance = 6,
                                    initial_distance = 4,
                                    approach_vel_threshold = 1.0,
                                    close_approach_vel = 0.3,
-                                   defender_speed_threshold = 2.0) {
+                                   defender_speed_threshold = 3.5,
+                                   approach_smooth_window = 3,        # Window for approach velocity smoothing
+                                   accel_threshold = 0.5) {           # Approach acceleration threshold
   
   enhanced_data <- calculate_approach_velocity(tracking_data, ball_carrier_df, frame_rate)
   enhanced_data <- enhanced_data[order(player_id, frame)]
   
   # Look at movement patterns over multiple frames
+  # first smooth 
   enhanced_data[, `:=`(
-    avg_approach_velocity_3f = frollmean(approach_velocity, n = 3, align = "right"),
-    recent_approach_count = frollsum(moving_toward_ball, n = 5, align = "right"),
-    approach_acceleration = (approach_velocity - shift(approach_velocity, type = "lag")) * frame_rate, # acceleration toward ball carrier
-    defender_speed = sqrt(vel_x^2 + vel_y^2)
+    approach_velocity_smooth = frollmean(approach_velocity, n = approach_smooth_window, align = "center")
+  ), by = player_id]
+  
+  enhanced_data[, `:=`(
+    approach_acceleration = (approach_velocity_smooth - data.table::shift(approach_velocity_smooth, type = "lag")) * frame_rate, # acceleration toward ball carrier
+    defender_speed = sqrt(vel_x^2 + vel_y^2)  ## USE SMOOTHED SPEED CALCULATED FROM calculate_metrics #####################
   ), by = player_id]
   
   # Pressing criteria
@@ -145,161 +184,77 @@ detect_pressing_action <- function(tracking_data, ball_carrier_df,
     initial_approach = distance_to_ball_carrier > initial_distance & approach_velocity > approach_vel_threshold,
     close_engagement = distance_to_ball_carrier <= initial_distance & (
       approach_velocity > close_approach_vel | 
-        recent_approach_count >= 3 | 
         defender_speed > defender_speed_threshold |
-        approach_acceleration > 0.5
+        approach_acceleration > accel_threshold
     )
   )]
   
   enhanced_data[, is_pressing := within_press_distance & (initial_approach | close_engagement)]
   
-  # Identify primary presser per frame (closest pressing defender)
-  primary_pressers <- enhanced_data[
-    is_pressing == TRUE
-  ][, .SD[which.min(distance_to_ball_carrier)], by = frame]
+  enhanced_data[, pressing_team_id := team_id]
   
-  # Count total pressing defenders per frame
-  pressing_summary <- enhanced_data[
-    is_pressing == TRUE
-  ][, .(
-    total_pressing_defenders = .N,
-    closest_pressing_distance = min(distance_to_ball_carrier),
-    avg_approach_velocity = mean(approach_velocity, na.rm = TRUE),
-    max_approach_velocity = max(approach_velocity, na.rm = TRUE)
+  return(enhanced_data)
+}
+
+#### Pressing Sequence Detection #### 
+identify_pressing_sequences <- function(enhanced_data, frame_rate = 10, max_frame_gap = 15) {    # Max frames between presses to be same sequence
+  
+  # Get frames where pressing is happening
+  pressing_frames <- enhanced_data[is_pressing == TRUE, .(
+    n_pressers = .N
   ), by = .(frame, possession_team)]
   
-  return(list(
-    individual_pressing = enhanced_data[is_pressing == TRUE],
-    primary_pressers = primary_pressers,
-    team_pressing_summary = pressing_summary
-  ))
-}
-
-#### Pressing Sequence Detection ####
-identify_pressing_sequences <- function(pressing_data, frame_rate = 10) {
+  # Sort by frame and identify sequence breaks
+  setorder(pressing_frames, possession_team, frame)
+  pressing_frames[, frame_gap := frame - data.table::shift(frame, fill = frame[1]), by = possession_team]
+  pressing_frames[, new_sequence := frame_gap > max_frame_gap]
+  pressing_frames[, sequence_group := cumsum(new_sequence), by = possession_team]
   
-  setDT(pressing_data$team_pressing_summary)
+  # Sequence summary
+  sequences <- pressing_frames[, .(
+    sequence_start_frame = min(frame),
+    sequence_end_frame = max(frame),
+    sequence_duration_frames = .N,
+    sequence_duration_seconds = .N / frame_rate
+  ), by = .(possession_team, sequence_group)]
   
-  pressing_sequences <- pressing_data$team_pressing_summary[order(frame)][, {
+  # Add sequence_id
+  sequences[, sequence_id := .I]
+  
+  # For each sequence, get player information
+  sequence_details <- list()
+  
+  for(i in 1:nrow(sequences)) {
+    seq <- sequences[i]
     
-    # Find sequences where there's continuous pressing
-    frame_diff <- c(1, diff(frame))
-    sequence_break <- frame_diff > 1
-    sequence_id <- cumsum(sequence_break)
+    # Get all pressing actions in this sequence
+    seq_players <- enhanced_data[
+      is_pressing == TRUE & 
+        possession_team == seq$possession_team &
+        frame >= seq$sequence_start_frame & 
+        frame <= seq$sequence_end_frame
+    ]
     
-    # Group by sequence and calculate metrics
-    .SD[, .(
-      sequence_start_frame = min(frame),
-      sequence_end_frame = max(frame),
-      sequence_duration_frames = .N,
-      sequence_duration_seconds = .N / frame_rate,
-      avg_pressing_defenders = round(mean(total_pressing_defenders), 2),
-      max_pressing_defenders = max(total_pressing_defenders),
-      min_distance = round(min(closest_pressing_distance), 3),
-      avg_approach_velocity = round(mean(avg_approach_velocity, na.rm = TRUE), 3)
-    ), by = sequence_id]
-  }, by = possession_team]
-  
-  return(pressing_sequences)
-}
-
-#### Passing Lane Analysis ####
-analyze_passing_lane_coverage <- function(tracking_data, events, frame_number) {
-  
-  setDT(events)
-  
-  # Get current player possession
-  current_possession <- events[
-    frame_start <= frame_number & frame_end >= frame_number & 
-      event_type == "player_possession"
-  ]
-  
-  if(nrow(current_possession) == 0) {
-    return(NULL)
+    # Calculate metrics for this sequence
+    details <- data.table(
+      sequence_id = seq$sequence_id,
+      max_pressing_defenders = uniqueN(seq_players$player_id),
+      min_distance = round(min(seq_players$distance_to_ball_carrier), 3),
+      avg_approach_velocity = round(mean(seq_players$approach_velocity, na.rm = TRUE), 3),
+      pressing_team_id = unique(seq_players$pressing_team_id)[1]
+    )
+    
+    sequence_details[[i]] <- details
   }
   
-  # Get passing options associated with this player possession
-  possession_event_id <- current_possession$event_id[1]
+  # Combine everything
+  sequence_details_dt <- rbindlist(sequence_details)
+  final_sequences <- merge(sequences, sequence_details_dt, by = "sequence_id")
   
-  current_passing_options <- events[
-    frame_start <= frame_number & frame_end >= frame_number & 
-      event_type == "passing_option" &
-      associated_player_possession_event_id == possession_event_id
-  ]
+  # Remove the temporary sequence_group column
+  final_sequences[, sequence_group := NULL]
   
-  if(nrow(current_passing_options) == 0) {
-    return(NULL)
-  }
-  
-  # Get tracking data for this frame
-  frame_tracking <- tracking_data[frame == frame_number]
-  possession_team <- current_possession$team_id[1]
-  
-  # Ball carrier position
-  ball_carrier_id <- current_possession$player_id[1]
-  ball_carrier_pos <- frame_tracking[player_id == ball_carrier_id][1]
-  
-  if(nrow(ball_carrier_pos) == 0 || is.na(ball_carrier_pos$x)) {
-    return(NULL)
-  }
-  
-  # Analyze each passing option
-  passing_analysis <- current_passing_options[, {
-    # Target player position
-    target_player_id <- player_id
-    target_pos <- frame_tracking[player_id == target_player_id][1]
-    
-    if(nrow(target_pos) > 0 && !is.na(target_pos$x) && 
-       target_player_id != ball_carrier_id) {
-      
-      # Get defending team players
-      defenders <- frame_tracking[team_id != possession_team]
-      
-      # Calculate how many defenders are "covering" this passing lane
-      # (within some distance of the line between ball carrier and target)
-      
-      # Line ball carrier and target
-      line_dx <- target_pos$x - ball_carrier_pos$x
-      line_dy <- target_pos$y - ball_carrier_pos$y
-      line_length <- sqrt(line_dx^2 + line_dy^2)
-      
-      if(length(line_length) == 1 && !is.na(line_length) && line_length > 0.1) {
-        
-        # For each defender, calculate distance to passing line
-        defender_distances <- defenders[, {
-          # Vector from ball carrier to defender
-          to_defender_x <- x - ball_carrier_pos$x
-          to_defender_y <- y - ball_carrier_pos$y
-          
-          # Project onto passing line
-          t <- (to_defender_x * line_dx + to_defender_y * line_dy) / (line_length^2)
-          t <- pmax(0, pmin(1, t))
-          
-          # Closest point on line
-          closest_x <- ball_carrier_pos$x + t * line_dx
-          closest_y <- ball_carrier_pos$y + t * line_dy
-          
-          distance_to_line <- sqrt((x - closest_x)^2 + (y - closest_y)^2)
-          
-          .(defender_id = player_id, distance_to_line, t)
-        }]
-        
-        # Count defenders "covering" this lane (within 3-5 meters of line)
-        covering_defenders <- sum(defender_distances$distance_to_line <= 4, na.rm = TRUE)
-        
-        data.table(
-          ball_carrier_id = ball_carrier_id,
-          target_player_id = target_player_id,
-          passing_distance = line_length,
-          defenders_covering_lane = covering_defenders,
-          min_defender_distance_to_lane = min(defender_distances$distance_to_line, na.rm = TRUE),
-          passing_option_covered = covering_defenders > 0
-        )
-      }
-    }
-  }, by = .(player_id)]
-  
-  return(passing_analysis)
+  return(final_sequences)
 }
 
 #### Get incoming passing data ####
@@ -357,3 +312,104 @@ link_player_possessions_with_incoming_passes <- function(events) {
   
   return(enhanced_possessions)
 }
+
+# #### Passing Lane Analysis ####
+# analyze_passing_lane_coverage <- function(tracking_data, events, frame_number,
+#                                           lane_coverage_distance = 4,      # Max distance from line to be "covering"
+#                                           min_line_length = 0.1) {         # Minimum passing line length to analyze
+#   
+#   setDT(events)
+#   
+#   # Get current player possession
+#   current_possession <- events[
+#     frame_start <= frame_number & frame_end >= frame_number & 
+#       event_type == "player_possession"
+#   ]
+#   
+#   if(nrow(current_possession) == 0) {
+#     return(NULL)
+#   }
+#   
+#   # Get passing options associated with this player possession
+#   possession_event_id <- current_possession$event_id[1]
+#   
+#   current_passing_options <- events[
+#     frame_start <= frame_number & frame_end >= frame_number & 
+#       event_type == "passing_option" &
+#       associated_player_possession_event_id == possession_event_id
+#   ]
+#   
+#   if(nrow(current_passing_options) == 0) {
+#     return(NULL)
+#   }
+#   
+#   # Get tracking data for this frame
+#   frame_tracking <- tracking_data[frame == frame_number]
+#   possession_team <- current_possession$team_id[1]
+#   
+#   # Ball carrier position
+#   ball_carrier_id <- current_possession$player_id[1]
+#   ball_carrier_pos <- frame_tracking[player_id == ball_carrier_id][1]
+#   
+#   if(nrow(ball_carrier_pos) == 0 || is.na(ball_carrier_pos$x)) {
+#     return(NULL)
+#   }
+#   
+#   # Analyze each passing option
+#   passing_analysis <- current_passing_options[, {
+#     # Target player position
+#     target_player_id <- player_id
+#     target_pos <- frame_tracking[player_id == target_player_id][1]
+#     
+#     if(nrow(target_pos) > 0 && !is.na(target_pos$x) && 
+#        target_player_id != ball_carrier_id) {
+#       
+#       # Get defending team players
+#       defenders <- frame_tracking[team_id != possession_team]
+#       
+#       # Calculate how many defenders are "covering" this passing lane
+#       # (within some distance of the line between ball carrier and target)
+#       
+#       # Line ball carrier and target
+#       line_dx <- target_pos$x - ball_carrier_pos$x
+#       line_dy <- target_pos$y - ball_carrier_pos$y
+#       line_length <- sqrt(line_dx^2 + line_dy^2)
+#       
+#       if(length(line_length) == 1 && !is.na(line_length) && line_length > min_line_length) {
+#         
+#         # For each defender, calculate distance to passing line
+#         defender_distances <- defenders[, {
+#           # Vector from ball carrier to defender
+#           to_defender_x <- x - ball_carrier_pos$x
+#           to_defender_y <- y - ball_carrier_pos$y
+#           
+#           # Project onto passing line
+#           t <- (to_defender_x * line_dx + to_defender_y * line_dy) / (line_length^2)
+#           t <- pmax(0, pmin(1, t))
+#           
+#           # Closest point on line
+#           closest_x <- ball_carrier_pos$x + t * line_dx
+#           closest_y <- ball_carrier_pos$y + t * line_dy
+#           
+#           distance_to_line <- sqrt((x - closest_x)^2 + (y - closest_y)^2)
+#           
+#           .(defender_id = player_id, distance_to_line, t)
+#         }]
+#         
+#         # Count defenders "covering" this lane
+#         covering_defenders <- sum(defender_distances$distance_to_line <= lane_coverage_distance, na.rm = TRUE)
+#         
+#         data.table(
+#           ball_carrier_id = ball_carrier_id,
+#           target_player_id = target_player_id,
+#           passing_distance = line_length,
+#           defenders_covering_lane = covering_defenders,
+#           min_defender_distance_to_lane = min(defender_distances$distance_to_line, na.rm = TRUE),
+#           passing_option_covered = covering_defenders > 0
+#         )
+#       }
+#     }
+#   }, by = .(player_id)]
+#   
+#   return(passing_analysis)
+# }

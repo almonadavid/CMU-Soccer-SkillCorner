@@ -1,13 +1,11 @@
-library(tidyverse)
-library(data.table)
-library(jsonlite)
-library(gganimate)
+library(tidyverse) # Data manipulation and visualization
+library(data.table) # Handling large data, fast and memory efficient
+library(jsonlite) # Loading JSON/JSONL files
+library(sf) 
+library(gganimate) # Plot animation
+library(purrr)
+library(deldir)
 
-
-
-################################################################
-##        PSA: Run eda_functions.R before proceeding          ##
-################################################################
 
 #### Read JSONL file ####  
 tracking_data <- stream_in(file("data/SkillCorner data/1274085_tracking_extrapolated.jsonl"))
@@ -30,7 +28,7 @@ players_info <- match_info_df$players
 # Add player information
 tracking_data <- tracking_data |> 
   left_join(
-    players_info |> select(id, team_id, first_name, last_name, short_name),
+    players_info |> select(id, team_id, first_name, last_name, short_name, number),
     join_by(player_id == id)
   )
 
@@ -44,67 +42,32 @@ tracking_data <- tracking_data |>
   left_join(team_mapping, by = "team_id")
 
 
-################################################################
-##              Exploratory Data Analysis (EDA)               ##
-################################################################
-
-
-home_players <- players_info[players_info$team_id == home_team_id, ]
-away_players <- players_info[players_info$team_id == away_team_id, ]
-
-# Home team lineup
-home_lineup <- home_players[, `:=` (
-  Name = first_name,
-  Surname = last_name,
-  Role = player_role.acronym
-)][, .(Name, Surname, Role)]
-
-# Away team lineup
-away_lineup <- away_players[, `:=` (
-  Name = first_name,
-  Surname = last_name,
-  Role = player_role.acronym
-)][, .(Name, Surname, Role)]
-
-
-#### Get Referee and Pitch Information ####
-referee_info <- match_info_df$referees
-
-pitch_length <- match_info_df$pitch_length
-pitch_width <- match_info_df$pitch_width
-print(paste("Pitch Dimensions:", pitch_length, "m x", pitch_width, "m"))
-
+#### Read event file ####
+events <- read_csv("data/SkillCorner data/1274085_dynamic_events.csv") |>
+  mutate(
+    player_in_possession_name = ifelse(event_type == "player_possession", player_name, player_in_possession_name)
+  ) |> 
+  left_join(
+    players_info |> select(short_name, id),
+    join_by(player_name == short_name)) |> 
+  mutate(
+    player_in_possession_id = ifelse(is.na(player_in_possession_id), id, player_in_possession_id)
+  ) |> 
+  select(-id) |> 
+  as.data.table()
 
 #### Calculate distance, direction, speed, acceleration ####
-tracking_data_update <- calculate_direction(tracking_data)
-
-
-#### Calculating minutes played (considering VAR stoppages and extra time, represents time spent on the pitch, not necessarily game time played) ####
-game_time <- calculate_minutes_played(tracking_data) |> 
-  select(short_name, team_id, minutes_played)
-
-
-## Calculate distance covered by each player
-player_distance <- calculate_distance_covered(tracking_data_update) |> 
-  select(short_name, team_id, total_distance, total_distance_km)
-
-
-#### Distance covered at different speed zones ####
-player_distance_category <- calculate_speed_zones(tracking_data_update) |> 
-  select(short_name, player_id, team_id, distance_jogging, distance_running, 
-         distance_hsr, distance_sprinting, total_distance, sustained_sprints, max_speed, avg_speed)
-
-
+tracking_data <- calculate_direction(tracking_data)
 
 #### GGANIMATE ####
-event_time <- "00:11:58.00"
+event_time <- "00:33:42.00"
+s
+target_frame <- tracking_data[timestamp == event_time, frame][1]
+frames_before <- 50
+frames_after <- 200
+frame_range <- 17050:17250 #(target_frame - frames_before):(target_frame + frames_after)
 
-target_frame <- tracking_data[timestamp == event_time, frame][1] # find first frame that matched event time
-frames_before <- 0
-frames_after <- 250
-frame_range <- (target_frame - frames_before):(target_frame + frames_after)
-
-anim_data <- tracking_data_update[frame %in% frame_range]
+anim_data <- tracking_data[frame %in% frame_range]
 
 
 # Create the animated plot
@@ -129,16 +92,16 @@ p <- ggplot(data = anim_data) +
            y=0+8.75*sin(seq(-0.3*pi,0.3*pi,length.out=30)), col="black") +
   annotate("path", x=42-8.75*cos(seq(-0.3*pi,0.3*pi,length.out=30)), size = 0.6,
            y=0-8.75*sin(seq(-0.3*pi,0.3*pi,length.out=30)), col="black") +
-  geom_spoke(data = anim_data[speed > 0.5],
+  geom_spoke(data = anim_data[speed_smooth > 0.5],
              aes(x = x, y = y, angle = direction * pi/180,
-                 radius = speed),
+                 radius = speed_smooth),
              arrow = arrow(length = unit(2, "mm"))) +
   geom_point(data = anim_data, aes(x = x, 
                                    y = y, 
-                                   color = as.factor(possession.group)), 
-             size = 6, alpha = 0.9) +
-  geom_text(data = anim_data, aes(x = x, y = y, label = number), 
-            size = 5, color = "black") + 
+                                   color = team_name), 
+             size = 4, alpha = 0.9) +
+  # geom_text(data = anim_data, aes(x = x, y = y, label = number), 
+  #           size = 5, color = "black") + 
   geom_point(data = anim_data, aes(x = ball_data.x, 
                                    y = ball_data.y,
                                    color = "BALL"), 
@@ -155,3 +118,28 @@ play <- animate(p, nframes = length(frame_range), fps = 20, width = 800, height 
 
 # Display the animation
 play
+
+
+
+
+ggplot(data = smoothed[frame >= 20760 & frame <= 20860 & number == 93, ]) +
+  geom_line(aes(x = frame, y = acceleration, color = "Raw"), alpha = 0.7) +
+  geom_line(aes(x = frame, y = acceleration_smooth, color = "Smoothed"), size = 1) +
+  scale_color_manual(values = c("Raw" = "red", "Smoothed" = "blue")) +
+  labs(title = "Acceleration: Raw vs Smoothed (Player 93)",
+       y = "Acceleration (m/s²)",
+       x = "Frame",
+       color = "Data Type") +
+  theme_minimal()
+
+ggplot(data = smoothed[frame >= 20760 & frame <= 20860 & number == 93, ]) +
+  geom_line(aes(x = frame, y = speed, color = "Raw"), alpha = 0.7) +
+  geom_line(aes(x = frame, y = speed_smooth, color = "Smoothed"), size = 1) +
+  scale_color_manual(values = c("Raw" = "red", "Smoothed" = "blue")) +
+  labs(title = "Speed: Raw vs Smoothed (Player 93)",
+       y = "Speed (m/s)",
+       x = "Frame",
+       color = "Data Type") +
+  theme_minimal()  
+  
+  
