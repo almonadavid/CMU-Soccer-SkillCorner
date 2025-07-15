@@ -122,24 +122,34 @@ play
 
 
 
-ggplot(data = smoothed[frame >= 20760 & frame <= 20860 & number == 93, ]) +
-  geom_line(aes(x = frame, y = acceleration, color = "Raw"), alpha = 0.7) +
-  geom_line(aes(x = frame, y = acceleration_smooth, color = "Smoothed"), size = 1) +
-  scale_color_manual(values = c("Raw" = "red", "Smoothed" = "blue")) +
-  labs(title = "Acceleration: Raw vs Smoothed (Player 93)",
-       y = "Acceleration (m/s²)",
-       x = "Frame",
-       color = "Data Type") +
-  theme_minimal()
-
-ggplot(data = smoothed[frame >= 20760 & frame <= 20860 & number == 93, ]) +
-  geom_line(aes(x = frame, y = speed, color = "Raw"), alpha = 0.7) +
-  geom_line(aes(x = frame, y = speed_smooth, color = "Smoothed"), size = 1) +
-  scale_color_manual(values = c("Raw" = "red", "Smoothed" = "blue")) +
-  labs(title = "Speed: Raw vs Smoothed (Player 93)",
-       y = "Speed (m/s)",
-       x = "Frame",
-       color = "Data Type") +
-  theme_minimal()  
-  
+#### REGULAR PLOT ####
+ggplot(data = pressing_sequences) +
+  annotate("rect",xmin = -52.5, xmax = 52.5, ymin = -34, ymax = 34, fill = NA, colour = "black", size = 0.6) +
+  annotate("rect",xmin = -52.5, xmax = 0, ymin = -34, ymax = 34, fill = NA, colour = "black", size = 0.6) +
+  annotate("rect",xmin = -52.5, xmax = -36.75, ymin = -18.7, ymax = 18.7, fill = NA, colour = "black", size = 0.6) +
+  annotate("rect",xmin = 36.75, xmax = 52.5, ymin = -18.7, ymax = 18.7, fill = NA, colour = "black", size = 0.6) +
+  annotate("rect",xmin = -52.5, xmax = -47.25, ymin = -8.5, ymax = 8.5, fill = NA, colour = "black", size = 0.6) +
+  annotate("rect",xmin = 52.5, xmax = 47.25, ymin = -8.5, ymax = 8.5, fill = NA, colour = "black", size = 0.6) +
+  annotate("rect",xmin = 52.5, xmax = 53, ymin = -3.4, ymax = 3.4, fill = NA, colour = "black", size = 0.6) +
+  annotate("rect",xmin = -52.5, xmax = -53, ymin = -3.4, ymax = 3.4, fill = NA, colour = "black", size = 0.6) +
+  annotate("segment", x = 0, xend = 0, y = -34.5, yend = 34.5, colour = "black", size = 0.6)+
+  annotate("segment", x = -52.5, xend = -52.5, y = -34, yend = 34, colour = "black", size = 0.6)+
+  annotate("segment", x = 52.5, xend = 52.5, y = -34, yend = 34, colour = "black", size = 0.6)+
+  annotate("point", x = -42 , y = 0, colour = "black", size = 1.05) +
+  annotate("point", x = 42 , y = 0, colour = "black", size = 1.05) +
+  annotate("path", colour = "black", size = 0.6, x=0+8.75*cos(seq(0,2*pi,length.out=2000)),
+           y=0+8.75*sin(seq(0,2*pi,length.out=2000))) +
+  annotate("point", x = 0 , y = 0, colour = "black", size = 1.05) +
+  annotate("path", x=-42+8.75*cos(seq(-0.3*pi,0.3*pi,length.out=30)), size = 0.6,
+           y=0+8.75*sin(seq(-0.3*pi,0.3*pi,length.out=30)), col="black") +
+  annotate("path", x=42-8.75*cos(seq(-0.3*pi,0.3*pi,length.out=30)), size = 0.6,
+           y=0-8.75*sin(seq(-0.3*pi,0.3*pi,length.out=30)), col="black") +
+  geom_point(data = pressing_sequences, 
+             aes(x = ifelse(attacking_side == "right_to_left", -ball_carrier_x, ball_carrier_x), 
+                 y = ifelse(attacking_side == "right_to_left", -ball_carrier_y, ball_carrier_y)), 
+             size = 1, alpha = 0.9) +
+  # geom_text(data = anim_data, aes(x = x, y = y, label = number), 
+  #           size = 5, color = "black") + 
+  coord_fixed() +
+  theme_void()
   

@@ -227,21 +227,19 @@ identify_pressing_sequences <- function(enhanced_data, frame_rate = 10, max_fram
   for(i in 1:nrow(sequences)) {
     seq <- sequences[i]
     
-    # Get all pressing actions in this sequence
-    seq_players <- enhanced_data[
+    # Get all pressing action at the start of the sequence
+    initial_metrics <- enhanced_data[
       is_pressing == TRUE & 
-        possession_team == seq$possession_team &
-        frame >= seq$sequence_start_frame & 
-        frame <= seq$sequence_end_frame
+        frame == seq$sequence_start_frame &
+        possession_team == seq$possession_team
     ]
     
     # Calculate metrics for this sequence
     details <- data.table(
       sequence_id = seq$sequence_id,
-      max_pressing_defenders = uniqueN(seq_players$player_id),
-      min_distance = round(min(seq_players$distance_to_ball_carrier), 3),
-      avg_approach_velocity = round(mean(seq_players$approach_velocity, na.rm = TRUE), 3),
-      pressing_team_id = unique(seq_players$pressing_team_id)[1]
+      n_pressing_defenders = uniqueN(initial_metrics$player_id),
+      avg_approach_velocity = round(mean(initial_metrics$approach_velocity, na.rm = TRUE), 3),
+      pressing_team_id = unique(initial_metrics$pressing_team_id)[1]
     )
     
     sequence_details[[i]] <- details

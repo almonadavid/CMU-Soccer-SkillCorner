@@ -60,6 +60,26 @@ events <- read_csv("data/skillcorner/dynamic_events/match_920975_events.csv") |>
   as.data.table()
 
 
+
+#### Standardize tracking data so that home team always attacks left-to-right ####
+home_team_directions <- events[!is.na(attacking_side) & team_id == home_team_id, 
+                               .(home_attacking = first(attacking_side)), 
+                               by = .(period)]
+
+# Merge that attacking direction above to tracking data
+tracking_data[home_team_directions, home_attacking := i.home_attacking, on = .(period)]
+
+tracking_data[, ':='(
+  x = ifelse(home_attacking == "right_to_left", -x, x),
+  y = ifelse(home_attacking == "right_to_left", -y, y),
+  ball_data.x = ifelse(home_attacking == "right_to_left", -ball_data.x, ball_data.x),
+  ball_data.y = ifelse(home_attacking == "right_to_left", -ball_data.y, ball_data.y)
+)]
+
+tracking_data[, home_attacking := NULL]
+
+
+
 ################################################################
 ##      PSA: Run pressing_functions.R before proceeding       ##
 ################################################################
@@ -81,28 +101,6 @@ ball_carrier_df <- get_ball_carrier(frames, events)
 #### Press Detection ####
 pressing_results <- detect_pressing_action(tracking_data, ball_carrier_df)
 pressing_sequences <- identify_pressing_sequences(pressing_results)
-
-
-#### Create player-sequence mapping for attribution ####
-# This captures all players involved in each pressing sequence
-
-player_sequence_mapping <- pressing_results[is_pressing == TRUE][
-  pressing_sequences,
-  on = .(possession_team, 
-         frame >= sequence_start_frame, 
-         frame <= sequence_end_frame),
-  nomatch = NULL,
-  allow.cartesian = TRUE
-  ]
-
-# Aggregate by the sequence_id from pressing_sequences
-player_sequence_mapping <- player_sequence_mapping[, .(
-  avg_distance_in_sequence = mean(distance_to_ball_carrier),
-  avg_approach_velocity_in_sequence = mean(approach_velocity),
-  frames_involved = .N,
-  pressing_team_id = first(team_id),
-  pressing_team_name = first(team_name)
-), by = .(sequence_id, possession_team, player_id, short_name)]
 
 
 #### Tag player possession events that ended in forced turnovers ####
@@ -137,28 +135,17 @@ for(i in 1:nrow(pressing_sequences)) {
 
 
 #### Add game state to pressing sequence data ####
-# First, get unique game state for each sequence
-game_state_info <- events[
-  event_type == "player_possession"
-][pressing_sequences, 
-  on = .(team_id == possession_team,
-         frame_start <= sequence_end_frame,
-         frame_end >= sequence_start_frame),
-  nomatch = NULL
-][, .(
-  poss_third_start = first(third_start),
-  game_state = first(game_state),
-  team_score = first(team_score),
-  opponent_team_score = first(opponent_team_score)
-), by = sequence_id]
-
-# Merge back by sequence_id (guaranteed 1:1)
-pressing_sequences <- merge(
-  pressing_sequences,
-  game_state_info,
-  by = "sequence_id",
-  all.x = TRUE
-)
+pressing_sequences[
+  events[event_type == "player_possession"], `:=`(
+    poss_third_start = i.third_start,
+    game_state = i.game_state,
+    team_score = i.team_score,
+    opponent_team_score = i.opponent_team_score),
+  on = .(possession_team = team_id,
+         sequence_start_frame >= frame_start,
+         sequence_start_frame <= frame_end),
+  mult = "first"
+]
 pressing_sequences[, goal_diff := team_score - opponent_team_score]
 
 
@@ -205,12 +192,12 @@ incoming_info <- incoming_pass_data[
 ), by = sequence_id]
 
 # Merge by sequence_id
-pressing_sequences <- merge(
-  pressing_sequences,
-  incoming_info,
-  by = "sequence_id",
-  all.x = TRUE
-)
+pressing_sequences[incoming_info,
+                   `:=`(start_type = i.start_type,
+                        incoming_high_pass = i.incoming_high_pass,
+                        incoming_pass_distance_received = i.incoming_pass_distance_received,
+                        incoming_pass_range_received = i.incoming_pass_range_received),
+                   on = "sequence_id"]
 
 
 #### Adding ball carrier coordinates to existing pressing_sequences ####
@@ -221,12 +208,11 @@ ball_carrier_positions <- tracking_data[, .(
   ball_carrier_y = y
 )]
 
-pressing_sequences <- merge(
-  pressing_sequences,
-  ball_carrier_positions,
-  by = c("sequence_start_frame", "player_in_possession_id"),
-  all.x = TRUE
-)
+pressing_sequences[ball_carrier_positions,
+                   `:=`(ball_carrier_x = i.ball_carrier_x,
+                        ball_carrier_y = i.ball_carrier_y),
+                   on = .(sequence_start_frame = sequence_start_frame,
+                          player_in_possession_id = player_in_possession_id)]
 
 
 #### Adding attacking_side from events to pressing_sequences ####
@@ -288,6 +274,13 @@ pressing_sequences[, dist_to_attacking_goal := ifelse(
 )]
 
 
+# Ball carrier direction and speed at sequence start
+pressing_sequences[tracking_data[, .(frame, player_id, direction, speed_smooth)], 
+                   `:=`(ball_carrier_direction = i.direction,
+                        ball_carrier_speed = i.speed_smooth),
+                   on = .(sequence_start_frame = frame, 
+                          player_in_possession_id = player_id)]
+
 ## Calculate minutes remaining in half and full game
 
 # Get all unique periods and their frame ranges
@@ -340,25 +333,15 @@ pressing_sequences[!is.na(minutes_remaining_game),
 
 # Just adding team name
 # The possession_team in pressing_sequences is the team being pressed (pressed_team)
-pressing_sequences <- merge(
-  pressing_sequences,
-  team_mapping,
-  by.x = "possession_team",
-  by.y = "team_id",
-  all.x = TRUE
-)
-setnames(pressing_sequences, "team_name", "pressed_team_name")
+pressing_sequences[team_mapping, 
+                   pressed_team_name := i.team_name,
+                   on = .(possession_team = team_id)]
 
 # Pressing team
-pressing_sequences <- merge(
-  pressing_sequences,
-  team_mapping,
-  by.x = "pressing_team_id",
-  by.y = "team_id",
-  all.x = TRUE,
-  suffixes = c("", "_pressing")
-)
-setnames(pressing_sequences, "team_name", "pressing_team_name")
+pressing_sequences[team_mapping,
+                   pressing_team_name := i.team_name,
+                   on = .(pressing_team_id = team_id)]
+
 setnames(pressing_sequences, "possession_team", "pressed_team_id")
 
 
@@ -369,27 +352,39 @@ setcolorder(pressing_sequences, c("match_id", "sequence_id", "pressed_team_name"
                                   "pressing_team_name", "pressing_team_id",
                                   "sequence_start_frame", "sequence_end_frame", "sequence_duration_frames", 
                                   "sequence_duration_seconds", "player_in_possession_id", "player_in_possession_name", "period",
-                                  "ball_carrier_x", "ball_carrier_y", "forced_turnover_within_5s", "max_pressing_defenders", 
-                                  "max_passing_options", "min_distance", "avg_approach_velocity",
+                                  "ball_carrier_x", "ball_carrier_y", "forced_turnover_within_5s", "n_pressing_defenders", 
+                                  "max_passing_options", "avg_approach_velocity",
                                   "team_score", "opponent_team_score", "goal_diff"))
 setorder(pressing_sequences, sequence_id)
 
 
+
+
 ############################################
-##        Variable Descriptions           ## UPDATE THIS !!!!!!!!!!!!!!!!!!!!!!
+##        Variable Descriptions           ##
 ############################################
 
-# max_pressing_defenders: This is the total count of unique defenders who were actively pressing at any point during the sequence.
-# min_distance: This represents the absolute closest that any defender got to the ball carrier during the entire duration of the sequence.
-# avg_approach_velocity: This is the average speed at which all pressing defenders closed down the ball carrier, averaged across all frames of the sequence.
-# max_passing_options: The number of available passing options for the ball carrier at the moment the press begins.
+# forced_turnover_within_5s: TRUE if a forced turnover happened 5s after the pressing sequence began. Else FALSE.
+
 # ball_carrier_x / ball_carrier_y: The on-pitch coordinates of the ball carrier specifically at the moment the press begins.
-# dist_to_nearest_sideline / dist_to_nearest_endline / dist_to_attacking_endline: These distances are all calculated based on the ball carrier's position at the moment the press begins.
-# dist_to_attacking_goal: Ball carrier's distance to center of attacking goal at the moment the press begins.
+# n_pressing_defenders: This is the total count of unique defenders who were actively pressing at the moment the press begins.
+# max_passing_options: The number of available passing options for the ball carrier at the moment the press begins.
+# avg_approach_velocity: This is the average speed at which all pressing defenders closed down the ball carrier at the moment the press begins.
 # poss_third_start: The area of the pitch (defensive, middle, attacking third) where the press sequence begins.
-# start_type (e.g. is_pass_reception, is_recovery, ...): Describes how the player came to be in possession of the ball before or right as the press sequence started.
-# incoming pass range received (e.g is_short_pass, is_medium_pass, ...): Information about the pass the player received (if any) right before the pressure started
-# incoming high pass (e.g is_high_pass_true/false/na): Describes if the pass the player received (if any) was recorded as a high pass or not.
-# organised defense (e.g is_organised_def_true/false/na): Describes the defensive structure at the moment the press begins (if recorded).
+# game_state: winning, drawing or losing.
+# start_type: Describes how the player came to be in possession of the ball.
+# incoming_high_pass: Describes if the pass the player received (if any) was recorded as a high pass, above 1.8 meters, or not.
+# incoming_pass_distance_received: Distance between the pass location to the location of the reception where the player started his possession.
+# incoming_pass_range_received: Range of the pass received that led to the player possession.
+# attacking_side: Attacking side of the team of the player in possession.
+# organised_defense:  TRUE if the defense is considered as organised at the moment of the pass. Else FALSE.
+# dist_to_nearest_sideline / dist_to_nearest_endline / dist_to_attacking_endline / dist_to_defensive_endline: These distances are all calculated based on the ball carrier's position at the moment the press begins.
+# dist_to_attacking_goal: Ball carrier's distance to center of attacking goal at the moment the press begins.
+# minutes_remaining_half: Minutes remaining until the end of current half (i.e til end of first or til end of second half)
+# minutes_remaining_game: Minutes remaining until the end of the full game.
+# ball_carrier_direction: Direction of ball carrier in degrees at the moment the press begins.
+# ball_carrier_speed: Speed of ball carrier in m/s at the moment the press begins.
+
+
 
 
