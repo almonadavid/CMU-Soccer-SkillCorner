@@ -76,7 +76,7 @@ tracking_data[, ':='(
   ball_data.y = ifelse(home_attacking == "right_to_left", -ball_data.y, ball_data.y)
 )]
 
-tracking_data[, home_attacking := NULL]
+tracking_data[, home_attacking := NULL] # remove
 
 
 
@@ -361,7 +361,7 @@ setorder(pressing_sequences, sequence_id)
 
 
 ############################################
-##        Variable Descriptions           ##
+##        Variable Descriptions           ## Is attacking_side needed anymore???
 ############################################
 
 # forced_turnover_within_5s: TRUE if a forced turnover happened 5s after the pressing sequence began. Else FALSE.
