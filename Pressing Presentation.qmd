@@ -8,26 +8,42 @@ format:
 editor: visual
 ---
 
-# Section title
 
-## Slide title
+## Introduction
 
-# Another section title
+**Pressing** is a defensive tactic where players apply coordinated pressure on the opponent with the ball to force mistakes, win back possession, and quickly transition to attack
+
+**Defensive Player Positioning** is an important aspect of press, affecting the effectiveness of the press in disrupting the opponent’s play and create scoring chances
+
+**Attacking player positioning** influences passing options and movement potential, alters the effectiveness of a defensive press, and affects the likelihood of successfully breaking that press
+
+
+## Data
+- **Dataset:** 
+521 matches in the MLS 2023 season
+
+- **Three data modalities:**
+  - Match information: home team, away team, pitch and referee information, ect. 
+  - Event data: on‑ball and off-ball activities—ex: passes, shots, tackles, recoveries, runs , turnovers , and goals—along with timestamp, location coordinates and player name
+  - Tracking data: identity, location and movement of all 22 players and the ball, across the full 90 minutes.
+
+- **Official data** from SkillCorner, which uses computer vision and machine learning to extract data from video broadcast
+
+
+
+## Methods
+
+
+## Analysis
+## Results
+## Discussion
+## Plan of Action
+
+
 
 ## This is a map of the US
 
-```{r}
-#|echo: false
-#| fig-width: 18
-#| fig-height: 9
-library(tidyverse)
-us_maps <- map_data("usa")
-us_maps |> 
-  ggplot(aes(long, lat, group = group)) +
-  geom_polygon() +
-  theme_light()
-  
-```
+
 
 ## Bullet points
 
@@ -57,9 +73,6 @@ rnorm(1)
 
 test
 
-
-
-
 ## Quarto
 
 Quarto enables you to weave together content and executable code into a finished presentation. To learn more about Quarto presentations see <https://quarto.org/docs/presentations/>.
@@ -78,5 +91,3 @@ When you click the **Render** button a presentation will be generated that inclu
 ```{r}
 1 + 1
 ```
-
-
