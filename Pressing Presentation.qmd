@@ -4,7 +4,7 @@ author: "Natalie Rayce, David Almona"
 format:
   revealjs:
     slide-number: true
-    chalkboard: true
+    embed-resources: true
 editor: visual
 ---
 
@@ -13,9 +13,7 @@ editor: visual
 
 **Pressing** is a defensive tactic where players apply coordinated pressure on the opponent with the ball to force mistakes, win back possession, and quickly transition to attack
 
-**Defensive Player Positioning** is an important aspect of press, affecting the effectiveness of the press in disrupting the opponent’s play and create scoring chances
 
-**Attacking player positioning** influences passing options and movement potential, alters the effectiveness of a defensive press, and affects the likelihood of successfully breaking that press
 
 
 ## Data
@@ -42,6 +40,9 @@ editor: visual
 
 
 ## Results
+- For modeling, we used Extreme Gradient Boosting (XGBoost), a machine learning algorithm that uses multiple decision trees to model complex relationships.
+- 10-fold cross-validation
+
 ## Discussion
 - Limitations:
   - Inaccuracy in SkillCorner Data
