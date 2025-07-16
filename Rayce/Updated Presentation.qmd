@@ -1,0 +1,95 @@
+---
+title: "Expected Pressure: An Evaluation of Individual and Team Performances in Pressing Situations"
+author: "Natalie Rayce, David Almona"
+format:
+  revealjs:
+    slide-number: true
+    embed-resources: true
+editor: visual
+---
+
+
+## Introduction: What is a press?
+
+**Pressing** is a defensive tactic where players apply coordinated pressure on the opponent with the ball to force mistakes, win back possession, and quickly transition to attack
+
+
+
+
+## Data
+- **Dataset:** 
+521 matches in the MLS 2023 season
+
+- **Three data modalities:**
+  - Match information: home team, away team, pitch and referee information, ect. 
+  - Event data: on‑ball and off-ball activities—ex: passes, shots, tackles, recoveries, runs , turnovers , and goals—along with timestamp, location coordinates and player name
+  - Tracking data: identity, location and movement of all 22 players and the ball, across the full 90 minutes(10 Hz)
+
+- **Official data** from SkillCorner, which uses computer vision and machine learning to extract data from video broadcast
+
+
+
+## Methods
+- We standardized the tracking data so that home team always attacks left-to-right
+- We pre defined the parameters to identify pressing sequences and - extracted data from the tracking and events files.
+- Measure effectiveness through a forced turnover 5s after pressing sequence begins
+- We accounted for spatio-temporal variables like speed, distance, positioning.
+- We analyzed just the first 10 games which had 4785 identified pressing sequences 
+
+## Methods(continued)
+
+
+## Results
+- For modeling, we used Extreme Gradient Boosting (XGBoost), a machine learning algorithm that uses multiple decision trees to model complex relationships.
+- 10-fold cross-validation
+
+## Discussion
+- Limitations:
+  - Inaccuracy in SkillCorner Data
+  - Individual Player Skill and Tactical Tendencies not considered in the mode
+- We assumed a circular pressure zone rather than an elliptical (or oval) pressure zone
+
+##
+
+```{r}
+library(magick)
+#| label: fig-plot
+#| include: TRUE
+#| echo: FALSE
+#| eval: TRUE
+#| warning: FALSE
+#| message: FALSE
+#| fig.width: 24
+#| fig.height: 16
+#| fig.cap: "plot"
+
+# save image as ggplot
+my_plot_ggplot <- image_read("~/Downloads/MLS Pressure Image.png") %>% 
+  image_ggplot(interpolate = TRUE)
+my_plot_ggplot
+```
+
+## Plan of Action
+1. Now that we have an XGBoost model, we plan to compare it with other models, e.g logistic, random forest, lightGBM
+2. Compare the expected pressure difference from individuals and teams on a scatterplot
+
+## 
+
+
+```{r}
+library(magick)
+#| label: fig-plot
+#| include: TRUE
+#| echo: FALSE
+#| eval: TRUE
+#| warning: FALSE
+#| message: FALSE
+#| fig.width: 24
+#| fig.height: 16
+#| fig.cap: "plot"
+
+# save image as ggplot
+my_plot_ggplot <- image_read("~/Downloads/MLS Big Image.png") %>% 
+  image_ggplot(interpolate = TRUE)
+my_plot_ggplot
+```
