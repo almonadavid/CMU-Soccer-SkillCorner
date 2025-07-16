@@ -1,4 +1,5 @@
 library(tidyverse)
+library(data.table)
 library(stacks)
 library(xgboost)
 library(caret)
@@ -13,6 +14,10 @@ library(tidymodels)
 
 #### Load Data ####
 pressing_data <- read_csv("results/all_games_pressing_sequences.csv") |>
+  filter( # remove coordinates outside field boundaries
+    between(ball_carrier_x, -52.5, 52.5),
+    between(ball_carrier_y, -34, 34)
+  ) |> 
   select(-match_id:-player_in_possession_name, -game_id) |>
   mutate_if(is.character, as.factor) |> 
   mutate_if(is.logical, as.factor) |> 
