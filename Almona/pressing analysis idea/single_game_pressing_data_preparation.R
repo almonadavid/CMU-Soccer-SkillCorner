@@ -215,16 +215,6 @@ pressing_sequences[ball_carrier_positions,
                           player_in_possession_id = player_in_possession_id)]
 
 
-#### Adding attacking_side from events to pressing_sequences ####
-pressing_sequences <- pressing_sequences[
-  events[event_type == "player_possession", .(frame_start, frame_end, attacking_side, organised_defense)],
-  on = .(sequence_start_frame >= frame_start, sequence_start_frame <= frame_end),
-  nomatch = NULL
-][, `:=`(
-  attacking_side = attacking_side,
-  organised_defense = organised_defense)][, !c("sequence_start_frame.1"), with = FALSE]
-
-
 #### Calculating distances to sideline/endline ####
 
 X_MIN <- -52.5  # Left goal line
@@ -244,14 +234,14 @@ pressing_sequences[, `:=`(
   
   # Distance to attacking endline
   dist_to_attacking_endline = ifelse(
-    attacking_side == "left_to_right",
+    possession_team == home_team_id,
     abs(ball_carrier_x - X_MAX),
-    abs(ball_carrier_x - X_MIN)
+    abs(ball_carrier_x - X_MIN) 
   ),
   
   # Distance to defending endline
   dist_to_defending_endline = ifelse(
-    attacking_side == "left_to_right",
+    possession_team == home_team_id, 
     abs(ball_carrier_x - X_MIN),
     abs(ball_carrier_x - X_MAX)
   )
@@ -261,16 +251,20 @@ pressing_sequences[, `:=`(
 #### Other additions ####
 
 # Does press start in defensive or offensive half
-pressing_sequences[, is_defensive_half := ifelse((attacking_side == "left_to_right" & ball_carrier_x <= 0) | (attacking_side == "right_to_left" & ball_carrier_x > 0), 1, 0)]
+pressing_sequences[, is_defensive_half := ifelse(
+  (possession_team == home_team_id & ball_carrier_x <= 0) |  # Home team's defensive half is x <= 0
+    (possession_team == away_team_id & ball_carrier_x > 0),    # Away team's defensive half is x > 0
+  1, 0
+)]
 
 # Corner trap situations
 pressing_sequences[, is_corner_trap := (dist_to_nearest_sideline < 15) & (dist_to_attacking_endline < 15)]
 
 # Distance of ball carrier to center of attacking goal
 pressing_sequences[, dist_to_attacking_goal := ifelse(
-  attacking_side == "left_to_right",
-  sqrt((52.5 - ball_carrier_x)^2 + (0 - ball_carrier_y)^2),  # Attacking goal is at (52.5, 0)
-  sqrt((-52.5 - ball_carrier_x)^2 + (0 - ball_carrier_y)^2)  # Attacking goal is at (-52.5, 0)
+  possession_team == home_team_id,
+  sqrt((52.5 - ball_carrier_x)^2 + (0 - ball_carrier_y)^2),   # Home attacks toward (52.5, 0)
+  sqrt((-52.5 - ball_carrier_x)^2 + (0 - ball_carrier_y)^2)   # Away attacks toward (-52.5, 0)
 )]
 
 
@@ -361,7 +355,7 @@ setorder(pressing_sequences, sequence_id)
 
 
 ############################################
-##        Variable Descriptions           ## Is attacking_side needed anymore???
+##        Variable Descriptions           ##
 ############################################
 
 # forced_turnover_within_5s: TRUE if a forced turnover happened 5s after the pressing sequence began. Else FALSE.
@@ -376,7 +370,6 @@ setorder(pressing_sequences, sequence_id)
 # incoming_high_pass: Describes if the pass the player received (if any) was recorded as a high pass, above 1.8 meters, or not.
 # incoming_pass_distance_received: Distance between the pass location to the location of the reception where the player started his possession.
 # incoming_pass_range_received: Range of the pass received that led to the player possession.
-# attacking_side: Attacking side of the team of the player in possession.
 # organised_defense:  TRUE if the defense is considered as organised at the moment of the pass. Else FALSE.
 # dist_to_nearest_sideline / dist_to_nearest_endline / dist_to_attacking_endline / dist_to_defensive_endline: These distances are all calculated based on the ball carrier's position at the moment the press begins.
 # dist_to_attacking_goal: Ball carrier's distance to center of attacking goal at the moment the press begins.
