@@ -1,0 +1,82 @@
+---
+title: "Expected Pressure: An Evaluation of Individual and Team Performances in Pressing Situations"
+author: "Natalie Rayce, David Almona"
+format:
+  revealjs:
+    slide-number: true
+    chalkboard: true
+editor: visual
+---
+
+# Section title
+
+## Slide title
+
+# Another section title
+
+## This is a map of the US
+
+```{r}
+#|echo: false
+#| fig-width: 18
+#| fig-height: 9
+library(tidyverse)
+us_maps <- map_data("usa")
+us_maps |> 
+  ggplot(aes(long, lat, group = group)) +
+  geom_polygon() +
+  theme_light()
+  
+```
+
+## Bullet points
+
+-   First Bullet
+    -   First Sub-bullet
+    -   Second Sub-bullet
+-   Second Bullet
+-   Third Bullet
+
+## Code Chunk
+
+```{r}
+#| echo: true
+#| eval: false
+rnorm(1)
+```
+
+## Numbered lists
+
+1.  
+
+2.  
+
+3.  
+
+## Quarto callouts
+
+test
+
+
+
+
+## Quarto
+
+Quarto enables you to weave together content and executable code into a finished presentation. To learn more about Quarto presentations see <https://quarto.org/docs/presentations/>.
+
+## Bullets
+
+When you click the **Render** button a document will be generated that includes:
+
+-   Content authored with markdown
+-   Output from executable code
+
+## Code
+
+When you click the **Render** button a presentation will be generated that includes both content and the output of embedded code. You can embed code like this:
+
+```{r}
+1 + 1
+```
+
+
