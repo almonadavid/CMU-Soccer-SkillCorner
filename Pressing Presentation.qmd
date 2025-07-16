@@ -9,7 +9,7 @@ editor: visual
 ---
 
 
-## Introduction
+## Introduction: What is a press?
 
 **Pressing** is a defensive tactic where players apply coordinated pressure on the opponent with the ball to force mistakes, win back possession, and quickly transition to attack
 
@@ -25,69 +25,72 @@ editor: visual
 - **Three data modalities:**
   - Match information: home team, away team, pitch and referee information, ect. 
   - Event data: on‑ball and off-ball activities—ex: passes, shots, tackles, recoveries, runs , turnovers , and goals—along with timestamp, location coordinates and player name
-  - Tracking data: identity, location and movement of all 22 players and the ball, across the full 90 minutes.
+  - Tracking data: identity, location and movement of all 22 players and the ball, across the full 90 minutes(10 Hz)
 
 - **Official data** from SkillCorner, which uses computer vision and machine learning to extract data from video broadcast
 
 
 
 ## Methods
+- We standardized the tracking data so that home team always attacks left-to-right
+- We pre defined the parameters to identify pressing sequences and - extracted data from the tracking and events files.
+- Measure effectiveness through a forced turnover 5s after pressing sequence begins
+- We accounted for spatio-temporal variables like speed, distance, positioning.
+- We analyzed just the first 10 games which had 4785 identified pressing sequences 
+
+## Methods(continued)
 
 
-## Analysis
 ## Results
 ## Discussion
+- Limitations:
+  - Inaccuracy in SkillCorner Data
+  - Individual Player Skill and Tactical Tendencies not considered in the mode
+- We assumed a circular pressure zone rather than an elliptical (or oval) pressure zone
+
+##
+
+```{r}
+library(magick)
+#| label: fig-plot
+#| include: TRUE
+#| echo: FALSE
+#| eval: TRUE
+#| warning: FALSE
+#| message: FALSE
+#| fig.width: 24
+#| fig.height: 16
+#| fig.cap: "plot"
+
+# save image as ggplot
+my_plot_ggplot <- image_read("~/Downloads/MLS Pressure Image.png") %>% 
+  image_ggplot(interpolate = TRUE)
+my_plot_ggplot
+```
+
 ## Plan of Action
+1. Now that we have an XGBoost model, we plan to compare it with other models, e.g logistic, random forest, lightGBM
+2. Compare the expected pressure difference from individuals and teams on a scatterplot
 
+## 
 
-
-## This is a map of the US
-
-
-
-## Bullet points
-
--   First Bullet
-    -   First Sub-bullet
-    -   Second Sub-bullet
--   Second Bullet
--   Third Bullet
-
-## Code Chunk
 
 ```{r}
-#| echo: true
-#| eval: false
-rnorm(1)
+library(magick)
+#| label: fig-plot
+#| include: TRUE
+#| echo: FALSE
+#| eval: TRUE
+#| warning: FALSE
+#| message: FALSE
+#| fig.width: 24
+#| fig.height: 16
+#| fig.cap: "plot"
+
+# save image as ggplot
+my_plot_ggplot <- image_read("~/Downloads/MLS Big Image.png") %>% 
+  image_ggplot(interpolate = TRUE)
+my_plot_ggplot
 ```
 
-## Numbered lists
 
-1.  
-
-2.  
-
-3.  
-
-## Quarto callouts
-
-test
-
-## Quarto
-
-Quarto enables you to weave together content and executable code into a finished presentation. To learn more about Quarto presentations see <https://quarto.org/docs/presentations/>.
-
-## Bullets
-
-When you click the **Render** button a document will be generated that includes:
-
--   Content authored with markdown
--   Output from executable code
-
-## Code
-
-When you click the **Render** button a presentation will be generated that includes both content and the output of embedded code. You can embed code like this:
-
-```{r}
-1 + 1
-```
