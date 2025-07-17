@@ -1,57 +1,187 @@
 ---
-title: "Expected Pressure: An Evaluation of Individual and Team Performances in Pressing Situations"
-author: "Natalie Rayce, David Almona"
+title: "Forced Turnover:<br>Evaluating Pressing Effectiveness in Soccer"
+author: Natalie Rayce, David Almona
+editor: visual
 format:
   revealjs:
     slide-number: true
     embed-resources: true
-editor: visual
+    preview-links: auto
+    # transition: slide
+    # smaller: true
 ---
 
 
-## Introduction: What is a press?
 
-**Pressing** is a defensive tactic where players apply coordinated pressure on the opponent with the ball to force mistakes, win back possession, and quickly transition to attack
+## Definitions
 
+::: fragment
+**Pressing:** a defensive tactic where players apply coordinated pressure on the opponent with the ball to force mistakes, win back possession, and quickly transition to attack
+:::
 
+::: fragment
+**Forced Turnover:** when a player loses possession due to opponent pressure, resulting in the opposing team gaining control. This includes misplaced passes, interceptions, successful tackles, or losing control under pressure - all direct results of effective defensive pressure
+:::
 
+## Data Overview
 
-## Data
-- **Dataset:** 
-521 matches in the MLS 2023 season
+::: fragment
+- **Dataset:** 521 matches in the MLS 2023 season
+:::
 
-- **Three data modalities:**
-  - Match information: home team, away team, pitch and referee information, ect. 
-  - Event data: on‑ball and off-ball activities—ex: passes, shots, tackles, recoveries, runs , turnovers , and goals—along with timestamp, location coordinates and player name
-  - Tracking data: identity, location and movement of all 22 players and the ball, across the full 90 minutes(10 Hz)
+::: fragment
+- **Source:** SkillCorner
+:::
 
-- **Official data** from SkillCorner, which uses computer vision and machine learning to extract data from video broadcast
-
+::: fragment
+- **Three data types:**
+  - **Match information:** game details (teams, pitch, referee)
+  - **Event data:** player actions (passes, shots, tackles) with timestamps and coordinates
+  - **Tracking data:** real-time positions of all players and ball (10 Hz)
+    
+:::
 
 
 ## Methods
-- We standardized the tracking data so that home team always attacks left-to-right
-- We pre defined the parameters to identify pressing sequences and - extracted data from the tracking and events files.
-- Measure effectiveness through a forced turnover 5s after pressing sequence begins
-- We accounted for spatio-temporal variables like speed, distance, positioning.
-- We analyzed just the first 10 games which had 4785 identified pressing sequences 
 
-## Methods(continued)
+::: fragment
+- Standardized the tracking data, such that home team always attacks left-to-right
+:::
+
+::: fragment
+-   Calculated frame-by-frame distance, speed, acceleration, and direction for every player on the field
+:::
+
+::: fragment
+-   Identified the ball carrier for each frame using the events data and measured how fast defenders were moving toward the ball carrier
+:::
+
+## Methods: Press detection
+
+Our pressing criteria required defenders to meet two conditions:
+
+::: fragment
+-  Be within **6 meters** of the ball carrier, **AND**
+-  Either be approaching at more than 1.0 meters per second OR show close engagement behaviors
+:::
+
+
+## The Modeling Data
+
+::: fragment
+- **4,875 pressing sequences** identified across the first 10 MLS matches
+:::
+
+:::fragment
+- **27 features** capturing tactical, spatial, and temporal contexts
+:::
+
+:::fragment
+- **Target Variable:** Forced turnover within 5 seconds of press sequence start (binary)
+:::
+
+## Key Variables
+
+::: fragment
+- **Spatial Context:** Ball carrier position, distance to boundaries, field third
+:::
+
+::: fragment
+- **Pressing Dynamics:** Number of defenders, approach velocity, passing options
+:::
+
+::: fragment
+- **Game Context:** Score, game state (winning/losing/drawing), time remaining
+:::
+
+::: fragment
+- **Situational Factors:** How ball carrier gained possession (pass reception, interception, etc.), incoming pass characteristics (distance, height, range)
+:::
 
 
 ## Results
-- For modeling, we used Extreme Gradient Boosting (XGBoost), a machine learning algorithm that uses multiple decision trees to model complex relationships.
-- 10-fold cross-validation
 
-## Discussion
-- Limitations:
-  - Inaccuracy in SkillCorner Data
-  - Individual Player Skill and Tactical Tendencies not considered in the mode
-- We assumed a circular pressure zone rather than an elliptical (or oval) pressure zone
+::: fragment
+- **Model:** XGBoost, with 10-fold cross validation
+- **Accuracy:** 82.1% 
+- **ROC-AUC:** 0.782
+:::
 
-##
+::: fragment
+**Confusion Matrix:**
+```{r}
+#| label: confusion-matrix
+#| echo: false
+#| warning: false
+#| message: false
+
+library(tidymodels)
+library(knitr)
+
+final_res <- readRDS("Almona/final_results.rds")
+
+# Create confusion matrix
+cm <- final_res |> 
+  collect_predictions() |> 
+  conf_mat(forced_turnover_within_5s, .pred_class)
+
+# Display table
+cm$table |> 
+  kable()
+```
+:::
+
+## Results: Variable Importance
+```{r}
+#| label: variable-importance
+#| echo: false
+#| warning: false
+#| message: false
+#| fig-width: 10
+#| fig-height: 6
+
+library(vip)
+
+final_xgb <- readRDS("Almona/final_model.rds")
+pressing_train <- readRDS("Almona/pressing_train.rds")
+
+final_xgb |> 
+  fit(data = pressing_train) |> 
+  extract_fit_parsnip() |> 
+  vip() +
+  theme_light(base_size = 18)
+```
+
+## Results: ROC Curve
+```{r}
+#| label: roc-curve
+#| echo: false
+#| warning: false
+#| message: false
+
+
+final_res <- readRDS("Almona/final_results.rds")
+
+final_res |> 
+  collect_predictions() |> 
+  roc_curve(forced_turnover_within_5s, .pred_FALSE) |> 
+  autoplot() +
+  theme_light(base_size = 18)
+```
+
+## Limitations
+
+::: fragment
+-  Inaccuracy in SkillCorner data
+-  Individual player skill and tactical tendencies not considered in the mode
+-  We assumed a circular pressure zone rather than an elliptical (or oval) pressure zone
+[insert picture]
+
+:::
 
 ```{r}
+#| eval: false 
+# This code will not be executed
 library(magick)
 #| label: fig-plot
 #| include: TRUE
@@ -69,14 +199,22 @@ my_plot_ggplot <- image_read("~/Downloads/MLS Pressure Image.png") %>%
 my_plot_ggplot
 ```
 
-## Plan of Action
-1. Now that we have an XGBoost model, we plan to compare it with other models, e.g logistic, random forest, lightGBM
-2. Compare the expected pressure difference from individuals and teams on a scatterplot
+
+## Next Steps
+1.  Now that we have an XGBoost model, we plan to compare it with other models, e.g logistic, random forest, lightGBM
+2.  Compare the expected pressure difference from individuals and teams on a scatterplot
+
+
+## Appendix
+?
+
+
 
 ## 
 
-
 ```{r}
+#| eval: false 
+# This code will not be executed
 library(magick)
 #| label: fig-plot
 #| include: TRUE
@@ -93,5 +231,3 @@ my_plot_ggplot <- image_read("~/Downloads/MLS Big Image.png") %>%
   image_ggplot(interpolate = TRUE)
 my_plot_ggplot
 ```
-
-

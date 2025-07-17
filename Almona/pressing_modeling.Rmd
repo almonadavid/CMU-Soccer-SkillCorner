@@ -1,5 +1,5 @@
 ---
-title: "Expected Pressure: An Evaluation of Individual and Team Performances in Pressing Situations"
+title: "Forced Turnover Prediction: Evaluating Pressing Effectiveness in Soccer"
 author: "[enter name]"
 date: "2025-07-16"
 output:
@@ -242,8 +242,16 @@ final_res |>
   roc_curve(forced_turnover_within_5s, .pred_FALSE) |> 
   autoplot()
 ```
+## Save Results
+```{r}
+saveRDS(final_res, "final_results.rds")
+saveRDS(final_xgb, "final_model.rds")
+saveRDS(pressing_train, "pressing_train.rds")
+```
 
 
 ## Next steps
 Now that we have an XGBoost model, we plan to compare it with other models.
 e.g logistic, random forest, lightGBM
+
+
