@@ -171,6 +171,7 @@ final_res |>
 ::: fragment
 -   Inaccuracy in SkillCorner data
 -   Individual player skill and tactical tendencies not considered in the model
+-   Our model does not account for pitch control
 :::
 
 
@@ -225,9 +226,41 @@ my_plot_ggplot <- image_read("pressure_plot.png") %>%
 my_plot_ggplot
 ```
 
+##
+
+
 ## Appendix
 
-?
+```{r}
+#| label: appendix
+#| include: TRUE
+#| echo: FALSE
+#| eval: TRUE
+#| warning: FALSE
+#| message: FALSE
+
+library(tidyverse)
+library(data.table)
+library(ggplot2)
+
+# Load Data
+pressing_data <- read_csv("C:/Users/almon/OneDrive - Centre College of Kentucky/Desktop/CMSACamp/Capstone/CMU-Soccer-SkillCorner/Almona/results/all_games_pressing_sequences.csv") |>
+  filter( # remove coordinates outside field boundaries
+    between(ball_carrier_x, -52.5, 52.5),
+    between(ball_carrier_y, -34, 34)
+  ) |> 
+  select(-match_id:-player_in_possession_name, -game_id) |>
+  mutate_if(is.character, as.factor) |> 
+  mutate_if(is.logical, as.factor) |> 
+  as.data.table()
+  
+ggplot(pressing_data, aes(start_type, fill = forced_turnover_within_5s)) +
+  geom_bar(position = "fill") +
+  coord_flip() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  theme_light()
+```
+
 
 ## 
 

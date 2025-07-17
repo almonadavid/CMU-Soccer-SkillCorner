@@ -69,23 +69,27 @@ pressing_test <- testing(pressing_split)
 #________________________________________
 
 xgb_spec <- boost_tree(
-  trees = 1000,
+  trees = tune(),
   tree_depth = tune(), min_n = tune(), loss_reduction = tune(),
   sample_size = tune(), mtry = tune(), learn_rate = tune()
 ) |> 
-  set_engine("xgboost") |> 
+  set_engine("xgboost", 
+             nthread = parallel::detectCores(),
+             early_stopping_rounds = 10,  # Stop if no improvement for 10 rounds
+             validation = 0.2) |>  # Use 20% for early stopping validation
   set_mode("classification")
 xgb_spec
 #_______________________________________
 
 xgb_grid <- grid_space_filling(
+  trees(range = c(100, 800)),
   tree_depth(),
   min_n(),
   loss_reduction(),
   sample_size = sample_prop(),
   finalize(mtry(), pressing_train),
   learn_rate(),
-  size = 20
+  size = 30
   
 )
 xgb_grid
@@ -97,18 +101,20 @@ xgb_wf <- workflow() |>
 xgb_wf
 #_____________________________________
 
-pressing_folds <- vfold_cv(pressing_train, strata = forced_turnover_within_5s)
+pressing_folds <- vfold_cv(pressing_train, v = 5, strata = forced_turnover_within_5s)
 pressing_folds
 #_____________________________________
-
+library(finetune)
 doParallel::registerDoParallel()
 
 set.seed(456)
-xgb_res <- tune_grid(
+xgb_res <- tune_race_anova(
   xgb_wf,
   resamples = pressing_folds,
   grid = xgb_grid,
-  control = control_grid(save_pred = TRUE) # save for roc curve
+  control = control_race(
+    save_pred = TRUE, # save for roc curve
+    verbose_elim = TRUE) # see eliminations
 )
 xgb_res
 #__________________________________________
