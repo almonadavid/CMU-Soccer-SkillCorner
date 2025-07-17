@@ -1,8 +1,3 @@
-data/
-results/
-/Almona/initial trial with bundesliga data/
-
-
 *.json
 *.jsonl
 *.Rproj
@@ -10,3 +5,10 @@ results/
 *.Rproj.user
 
 .Rproj.user
+
+data/
+results/
+/Almona/initial trial with bundesliga data/
+/Almona/EDA/
+
+
