@@ -170,13 +170,17 @@ final_res |>
 
 ::: fragment
 -   Inaccuracy in SkillCorner data
--   Individual player skill and tactical tendencies not considered in the mode
--   We assumed a circular pressure zone rather than an elliptical (or oval) pressure zone \[insert picture\]
+-   Individual player skill and tactical tendencies not considered in the model
 :::
 
+
+## Next Steps
+
+::: fragment
+1. Use an elliptical (or oval) pressure zone rather than a circular one.
+
+
 ```{r}
-#| eval: false 
-# This code will not be executed
 library(magick)
 #| label: fig-plot
 #| include: TRUE
@@ -189,15 +193,37 @@ library(magick)
 #| fig.cap: "plot"
 
 # save image as ggplot
-my_plot_ggplot <- image_read("~/Downloads/MLS Pressure Image.png") %>% 
+my_plot_ggplot <- image_read("pressure_zone.png") %>% 
   image_ggplot(interpolate = TRUE)
 my_plot_ggplot
 ```
 
+:::
+
 ## Next Steps
 
-1.  Now that we have an XGBoost model, we plan to compare it with other models, e.g logistic, random forest, lightGBM
-2.  Compare the expected pressure difference from individuals and teams on a scatterplot
+2. Compare the expected pressure difference from individuals and teams on a scatterplot.
+
+## Next Steps
+
+3. Now that we have an XGBoost model, we plan to compare it with other models, e.g random forest, lightGBM.
+
+```{r}
+library(magick)
+#| label: fig-plot
+#| include: TRUE
+#| echo: FALSE
+#| eval: TRUE
+#| warning: FALSE
+#| message: FALSE
+#| fig.width: 24
+#| fig.height: 16
+
+# save image as ggplot
+my_plot_ggplot <- image_read("pressure_plot.png") %>% 
+  image_ggplot(interpolate = TRUE)
+my_plot_ggplot
+```
 
 ## Appendix
 
@@ -205,22 +231,3 @@ my_plot_ggplot
 
 ## 
 
-```{r}
-#| eval: false 
-# This code will not be executed
-library(magick)
-#| label: fig-plot
-#| include: TRUE
-#| echo: FALSE
-#| eval: TRUE
-#| warning: FALSE
-#| message: FALSE
-#| fig.width: 24
-#| fig.height: 16
-#| fig.cap: "plot"
-
-# save image as ggplot
-my_plot_ggplot <- image_read("~/Downloads/MLS Big Image.png") %>% 
-  image_ggplot(interpolate = TRUE)
-my_plot_ggplot
-```
