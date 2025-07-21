@@ -1,29 +1,29 @@
-library(tidyverse) # Data manipulation and visualization
-library(data.table) # Handling large data, fast and memory efficient
-library(jsonlite) # Loading JSON/JSONL files
+library(tidyverse)
+library(data.table) # Handles large data faster than dplyr
+library(jsonlite)
 library(sf) 
-library(gganimate) # Plot animation
+library(gganimate)
 library(purrr)
 library(deldir)
 
 
 
 #### Read JSONL file ####  
-tracking_data <- fromJSON("data/skillcorner/tracking/match_920975_tracking.json")
+tracking_data <- fromJSON("data/skillcorner/tracking/match_1039803_tracking.json")
 tracking_data <- tracking_data |> 
   unnest(cols = c(player_data)) |>
   as.data.table()
 
 #### Get Player Information ####
-match_info <- fromJSON("data/skillcorner/match_data/match_920975_data.json", simplifyDataFrame = FALSE)
-match_info_df <- fromJSON("data/skillcorner/match_data/match_920975_data.json")
+match_info <- fromJSON("data/skillcorner/match_data/match_1039803_data.json", simplifyDataFrame = FALSE)
+match_info_df <- fromJSON("data/skillcorner/match_data/match_1039803_data.json")
+players_info <- match_info_df$players
 
 #### Get Team Information ####
 home_team_name <- match_info$home_team$name
 away_team_name <- match_info$away_team$name
-home_team_id <- match_info_df$home_team$id
-away_team_id <- match_info_df$away_team$id
-players_info <- match_info_df$players
+home_team_id <- match_info$home_team$id
+away_team_id <- match_info$away_team$id
 
 match_id <- match_info$id
 
@@ -46,7 +46,7 @@ tracking_data <- tracking_data |>
 
 
 #### Read event file ####
-events <- read_csv("data/skillcorner/dynamic_events/match_920975_events.csv") |>
+events <- read_csv("data/skillcorner/dynamic_events/match_1039803_events.csv", show_col_types = FALSE) |>
   mutate(
     player_in_possession_name = ifelse(event_type == "player_possession", player_name, player_in_possession_name)
   ) |> 
@@ -80,9 +80,10 @@ tracking_data[, home_attacking := NULL] # remove
 
 
 
+
 ################################################################
-##      PSA: Run pressing_functions.R before proceeding       ##
-################################################################
+## Run pressing_functions.R before proceeding 
+source("Almona/pressing_functions.R")
 
 
 ################################################################
@@ -138,14 +139,14 @@ for(i in 1:nrow(pressing_sequences)) {
 pressing_sequences[
   events[event_type == "player_possession"], `:=`(
     poss_third_start = i.third_start,
+    penalty_area = i.penalty_area_start,
     game_state = i.game_state,
     team_score = i.team_score,
     opponent_team_score = i.opponent_team_score),
   on = .(possession_team = team_id,
-         sequence_start_frame >= frame_start,
-         sequence_start_frame <= frame_end),
-  mult = "first"
-]
+         sequence_end_frame >= frame_start,
+         sequence_start_frame <= frame_end)
+  ]
 pressing_sequences[, goal_diff := team_score - opponent_team_score]
 
 
@@ -247,6 +248,29 @@ pressing_sequences[, `:=`(
   )
 )]
 
+#### Calculate number of defenders within various radii ####
+# Get defender positions at the start of each pressing sequence
+defenders_at_sequence_start <- pressing_results[
+  pressing_sequences[, .(sequence_id, sequence_start_frame, possession_team)],
+  on = .(frame = sequence_start_frame, possession_team = possession_team),
+  nomatch = NULL
+][team_id != possession_team]
+
+# Calculate all radius counts at once
+radius_counts <- defenders_at_sequence_start[, .(
+  n_defenders_within_10m = sum(distance_to_ball_carrier <= 10, na.rm = TRUE),
+  n_defenders_within_15m = sum(distance_to_ball_carrier <= 15, na.rm = TRUE),
+  n_defenders_within_20m = sum(distance_to_ball_carrier <= 20, na.rm = TRUE),
+  n_defenders_within_25m = sum(distance_to_ball_carrier <= 25, na.rm = TRUE)
+), by = sequence_id]
+
+# Add to pressing_sequences
+pressing_sequences[radius_counts, 
+                   `:=`(n_defenders_within_10m = i.n_defenders_within_10m,
+                        n_defenders_within_15m = i.n_defenders_within_15m,
+                        n_defenders_within_20m = i.n_defenders_within_20m,
+                        n_defenders_within_25m = i.n_defenders_within_25m),
+                   on = "sequence_id"]
 
 #### Other additions ####
 
@@ -274,6 +298,7 @@ pressing_sequences[tracking_data[, .(frame, player_id, direction, speed_smooth)]
                         ball_carrier_speed = i.speed_smooth),
                    on = .(sequence_start_frame = frame, 
                           player_in_possession_id = player_id)]
+
 
 ## Calculate minutes remaining in half and full game
 
@@ -340,6 +365,7 @@ setnames(pressing_sequences, "possession_team", "pressed_team_id")
 
 
 pressing_sequences[, match_id := match_id] # Add match id
+pressing_sequences[, is_home := ifelse(pressed_team_id == home_team_id, 1, 0)] # Add home/away marker
 
 #### Reorder Columns ####
 setcolorder(pressing_sequences, c("match_id", "sequence_id", "pressed_team_name", "pressed_team_id", 
@@ -377,6 +403,7 @@ setorder(pressing_sequences, sequence_id)
 # minutes_remaining_game: Minutes remaining until the end of the full game.
 # ball_carrier_direction: Direction of ball carrier in degrees at the moment the press begins.
 # ball_carrier_speed: Speed of ball carrier in m/s at the moment the press begins.
+# penalty_area: TRUE if the pressing sequence starts is in the penalty area. Else FALSE.
 
 
 

@@ -35,11 +35,20 @@ Our dataset contains pressing sequences from 10 MLS matches in the 2023 season. 
 
 ```{r load-data, message=FALSE}
 pressing_data <- read_csv("results/all_games_pressing_sequences.csv") |>
-  filter( # remove coordinates outside field boundaries
+  filter(
     between(ball_carrier_x, -52.5, 52.5),
     between(ball_carrier_y, -34, 34)
   ) |> 
   select(-match_id:-player_in_possession_name, -game_id) |>
+  mutate(
+    start_type = case_when(
+      str_detect(start_type, "interception") ~ "interception",
+      str_detect(start_type, "reception") ~ "reception",
+      start_type == "keep_possession" ~ "keep_possession",
+      start_type == "recovery" ~ "recovery",
+      TRUE ~ "unknown"
+    )
+  ) |> 
   mutate_if(is.character, as.factor) |> 
   mutate_if(is.logical, as.factor) |> 
   as.data.table()
@@ -70,7 +79,8 @@ ggplot(pressing_data, aes(x = avg_approach_velocity, y = dist_to_attacking_goal,
 ggplot(pressing_data, aes(start_type, fill = forced_turnover_within_5s)) +
   geom_bar(position = "fill") +
   coord_flip() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(y = "proportion")
 ```
 
 ```{r start-type-plot-2}
@@ -105,15 +115,14 @@ pressing_test <- testing(pressing_split)
 ### XGBoost Model
 ```{r}
 xgb_spec <- boost_tree(
-  trees = 1000,
-  tree_depth = tune(), 
-  min_n = tune(), 
-  loss_reduction = tune(),
-  sample_size = tune(), 
-  mtry = tune(), 
-  learn_rate = tune()
+  trees = tune(),
+  tree_depth = tune(), min_n = tune(), loss_reduction = tune(),
+  sample_size = tune(), mtry = tune(), learn_rate = tune()
 ) |> 
-  set_engine("xgboost") |> 
+  set_engine("xgboost", 
+             nthread = parallel::detectCores(),
+             early_stopping_rounds = 10,  # Stop if no improvement for 10 rounds
+             validation = 0.2) |>  # Use 20% for early stopping validation
   set_mode("classification")
 
 xgb_spec
@@ -123,14 +132,14 @@ We're tuning 6 hyperparameters to find the optimal model configuration. This wil
 ### Hyperparameter grid
 ```{r}
 xgb_grid <- grid_space_filling(
+  trees(range = c(100, 800)),
   tree_depth(),
   min_n(),
   loss_reduction(),
   sample_size = sample_prop(),
   finalize(mtry(), pressing_train),
   learn_rate(),
-  size = 20 # you can change this number
-  
+  size = 30
 )
 
 xgb_grid
@@ -146,9 +155,9 @@ xgb_wf
 ```
 
 ### Cross-Validation Folds
-10-fold cross-validation
+5-fold cross-validation
 ```{r}
-pressing_folds <- vfold_cv(pressing_train, strata = forced_turnover_within_5s)
+pressing_folds <- vfold_cv(pressing_train, v = 5, strata = forced_turnover_within_5s)
 
 pressing_folds
 ```
@@ -158,23 +167,24 @@ pressing_folds
 Now we'll train our XGBoost model with all 20 hyperparameter combinations across our 10 cross-validation folds. This will take a few minutes to run.
 
 ```{r xgb-tuning, cache=TRUE, warning=FALSE}
-doParallel::registerDoParallel() # to make this process faster
+library(finetune)
+doParallel::registerDoParallel()
 
 set.seed(456)
-tic()
-xgb_res <- tune_grid(
+xgb_res <- tune_race_anova(
   xgb_wf,
   resamples = pressing_folds,
   grid = xgb_grid,
-  control = control_grid(save_pred = TRUE) # save for roc curve
+  control = control_race(
+    save_pred = TRUE, # save for roc curve
+    verbose_elim = TRUE) # see eliminations
 )
-toc()
 
 xgb_res
 
 ```
 
-**Explain:** We trained 200 models (20 hyperparameter combinations × 10 folds) and evaluated each one. The save_pred = TRUE option stores all the predictions so we can create detailed performance plots later.
+**Explain:** We trained 100 models (20 hyperparameter combinations × 5 folds) and evaluated each one. The save_pred = TRUE option stores all the predictions so we can create detailed performance plots later.
 
 ## Explore Results
 ```{r}

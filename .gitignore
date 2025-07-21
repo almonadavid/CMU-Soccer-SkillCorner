@@ -8,7 +8,9 @@
 
 data/
 results/
+model_results/
+logs/
 /Almona/initial trial with bundesliga data/
 /Almona/EDA/
-
+animation.R
 

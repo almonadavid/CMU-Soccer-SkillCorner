@@ -1,122 +1,106 @@
 library(tidyverse)
 library(data.table)
-library(stacks)
-library(xgboost)
-library(caret)
-library(glmnet)
+library(ranger)
+library(tidymodels)
 library(tictoc)
 
-# install.packages("tidymodels")
-library(tidymodels)
-
-
-## YouTube tutorial
 
 #### Load Data ####
-pressing_data <- read_csv("results/all_games_pressing_sequences.csv") |>
-  filter( # remove coordinates outside field boundaries
+pressing_data <- fread("results/all_games_pressing_sequences.csv") |>
+  filter(
     between(ball_carrier_x, -52.5, 52.5),
     between(ball_carrier_y, -34, 34)
   ) |> 
-  select(-match_id:-player_in_possession_name, -game_id) |>
+  select(-match_id:-player_in_possession_name, -game_id, -period, -is_home) |>
+  mutate(
+    start_type = case_when(
+      str_detect(start_type, "interception") ~ "interception",
+      str_detect(start_type, "reception") ~ "reception",
+      start_type == "keep_possession" ~ "keep_possession",
+      start_type == "recovery" ~ "recovery",
+      TRUE ~ "unknown"
+    )
+  ) |> 
   mutate_if(is.character, as.factor) |> 
-  mutate_if(is.logical, as.factor) |> 
-  as.data.table()
-
-# exclude pressing sequence that last just 1 frame (0.1s), could be noise
-# pressing_data <- pressing_data[sequence_duration_frames > 1]
+  mutate_if(is.logical, as.factor)
 
 
-#### Exploratory Data Analysis ####
-ggplot(pressing_data, aes(x = avg_approach_velocity, y = dist_to_attacking_goal, color = forced_turnover_within_5s)) +
-  geom_point()
-
-
-ggplot(pressing_data, aes(start_type, fill = forced_turnover_within_5s)) +
-  geom_bar(position = "fill") +
-  coord_flip() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-
-
-ggplot(pressing_data, aes(poss_third_start, fill = forced_turnover_within_5s)) +
-  geom_bar(position = "fill") +
-  coord_flip() +
-  labs(
-    y = "Proportion", 
-    x = "Possession Third", 
-    title = "Turnover Rate by Starting Possession Third",
-    fill = "Turnover"
-  )
-
-
-ggplot(pressing_data, aes(forced_turnover_within_5s, dist_to_attacking_goal)) +
-  geom_boxplot() +
-  labs(
-    x = "Forced Turnover", 
-    y = "Distance to Attacking Goal (m)", 
-    title = "Distance to Goal When Turnovers Occur"
-  ) +
-  coord_flip()
-
-
-
-#### Build a Model ####
 # Create training and testing sets
 set.seed(123)
 pressing_split <- initial_split(pressing_data, strata = forced_turnover_within_5s)
 pressing_train <- training(pressing_split)
 pressing_test <- testing(pressing_split)
-#________________________________________
+
+
+# Recipe
+pressing_rec <- recipe(forced_turnover_within_5s ~ ., data = pressing_train) |>
+  step_unknown(all_nominal_predictors(), new_level = "missing") |>
+  step_dummy(all_nominal_predictors()) |>
+  step_zv(all_predictors())
+
+# Folds
+pressing_folds <- vfold_cv(pressing_train, v = 10, strata = forced_turnover_within_5s)
+
+pressing_folds
+
+#### XGBOOST ###################################################################################################
 
 xgb_spec <- boost_tree(
   trees = tune(),
-  tree_depth = tune(), min_n = tune(), loss_reduction = tune(),
-  sample_size = tune(), mtry = tune(), learn_rate = tune()
+  tree_depth = tune(), 
+  min_n = tune(), 
+  loss_reduction = tune(),
+  sample_size = tune(), 
+  mtry = tune(), 
+  learn_rate = tune()
 ) |> 
   set_engine("xgboost", 
              nthread = parallel::detectCores(),
-             early_stopping_rounds = 10,  # Stop if no improvement for 10 rounds
-             validation = 0.2) |>  # Use 20% for early stopping validation
+             early_stopping_rounds = 10,
+             validation = 0.2) |>
   set_mode("classification")
-xgb_spec
+
+#xgb_spec
 #_______________________________________
 
 xgb_grid <- grid_space_filling(
-  trees(range = c(100, 800)),
+  trees(range = c(100, 1000)),
   tree_depth(),
   min_n(),
   loss_reduction(),
   sample_size = sample_prop(),
   finalize(mtry(), pressing_train),
   learn_rate(),
-  size = 30
+  size = 20
   
 )
-xgb_grid
+
+#xgb_grid
 #______________________________________
 
 xgb_wf <- workflow() |> 
-  add_formula(forced_turnover_within_5s ~ .) |> 
+  add_recipe(pressing_rec) |> 
   add_model(xgb_spec)
-xgb_wf
+
+#xgb_wf
 #_____________________________________
 
-pressing_folds <- vfold_cv(pressing_train, v = 5, strata = forced_turnover_within_5s)
-pressing_folds
-#_____________________________________
-library(finetune)
-doParallel::registerDoParallel()
+library(future)
+plan(multisession, workers = parallel::detectCores() - 1)
 
 set.seed(456)
+tic("XGBoost Tuning")
 xgb_res <- tune_race_anova(
   xgb_wf,
   resamples = pressing_folds,
   grid = xgb_grid,
   control = control_race(
-    save_pred = TRUE, # save for roc curve
-    verbose_elim = TRUE) # see eliminations
+    save_pred = TRUE,
+    verbose_elim = TRUE)
 )
-xgb_res
+#xgb_res
+toc()
+gc()
 #__________________________________________
 
 #### Explore Results ####
@@ -134,12 +118,10 @@ xgb_res |>
 
 show_best(xgb_res, metric = "roc_auc")
 
-best_auc <- select_best(xgb_res, metric = "roc_auc")
-best_auc
+best_xgb <- select_best(xgb_res, metric = "roc_auc")
 
-
-final_xgb <- finalize_workflow(xgb_wf, best_auc )
-final_xgb
+final_xgb <- finalize_workflow(xgb_wf, best_xgb)
+#final_xgb
 #____________________________________
 
 library(vip)
@@ -149,106 +131,175 @@ final_xgb |>
   vip()
 #___________________________________
 
-final_res <- last_fit(final_xgb, pressing_split)
+final_xgb_res <- last_fit(final_xgb, pressing_split)
 
-final_res |> 
+final_xgb_res |> 
   collect_metrics() 
 #__________________________________
 
 # confusion matrix
-final_res |> 
+final_xgb_res |> 
   collect_predictions() |> 
   conf_mat(forced_turnover_within_5s, .pred_class)
 
 # roc curve
-final_res |> 
+final_xgb_res |> 
   collect_predictions() |> 
   roc_curve(forced_turnover_within_5s, .pred_FALSE) |> 
   autoplot()
 
 
-#### Next Steps
-# try these engines...ranger, glm, lightgbm, catboost, rpart, kknn, 
+#### LIGHT GBM #############################################################
+library(bonsai)
 
+# Model specification
+lgb_spec <- boost_tree(
+  trees = tune(),
+  tree_depth = tune(),
+  min_n = tune(),
+  loss_reduction = tune(),
+  learn_rate = tune(),
+  mtry = tune(),
+  sample_size = tune()
+) |> 
+  set_engine("lightgbm",
+             num_threads = parallel::detectCores(),
+             early_stopping_round = 10,
+             validation = 0.2) |>
+  set_mode("classification")
 
+#lgb_spec
+#_____________________________________________________
 
+#hyperparameter grid
+lgb_grid <- grid_space_filling(
+  trees(),
+  tree_depth(),
+  min_n(),
+  loss_reduction(),
+  sample_size = sample_prop(),
+  finalize(mtry(), pressing_train),
+  learn_rate(),
+  size = 20
+)
 
+#lgb_grid
 
+#___________________________________________________
 
+lgb_wf <- workflow() |> 
+  add_recipe(pressing_rec) |> 
+  add_model(lgb_spec)
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#### Load data ####
-
-pressing_data <- as.data.table(read.csv("results/all_games_pressing_sequences.csv"))
-
-
-#### Elastic Net ####
-
-
-#### Random forest #### no tuning
-library(ranger)
-pressing_rf <- ranger(forced_turnover_within_5s ~ ., 
-                      num.trees = 1000,
-                      classification = TRUE,
-                      probability = TRUE,
-                      importance = "impurity", # try "permutation"???
-                      data = pressing_data)
-library(vip)
-vip(pressing_rf)
-
-pressing_data |> 
-  mutate(pred = pressing_rf$predictions) |> 
-  summarize(rmse = sqrt(mean((forced_turnover_within_5s - pred) ^ 2))) # RMSE
-
-#### tidymodels ####
-library(tidymodels)
-
-set.seed(123)
-pressing_split <- initial_split(pressing_data, strata = forced_turnover_within_5s)
-pressing_train <- training(pressing_split)
-pressing_test <- testing(pressing_split)
-
+#lgb_wf
+#___________________________________________________
+library(future)
+plan(multisession, workers = parallel::detectCores() - 1)
 
 set.seed(456)
-pressing_folds <- vfold_cv(pressing_train, strata = forced_turnover_within_5s)
-pressing_folds
+tic("LightGBM Tuning")
+lgb_res <- tune_race_anova(
+  lgb_wf,
+  resamples = pressing_folds,
+  grid = lgb_grid,
+  control = control_race(
+    save_pred = TRUE,
+    verbose_elim = TRUE)
+)
+toc()
+#lgb_res
+
+#__________________________________________________
+
+show_best(lgb_res, metric = "roc_auc")
+
+best_lgb <- select_best(lgb_res, metric = "roc_auc")
+
+final_lgb <- finalize_workflow(lgb_wf, best_lgb)
+#final_lgb
+#____________________________________
+
+library(vip)
+final_lgb |> 
+  fit(data = pressing_train) |> 
+  extract_fit_parsnip() |> 
+  vip()
+#___________________________________
+
+final_lgb_res <- last_fit(final_lgb, pressing_split)
+
+final_lgb_res |> 
+  collect_metrics() 
+#__________________________________
+
+# confusion matrix
+final_lgb_res |> 
+  collect_predictions() |> 
+  conf_mat(forced_turnover_within_5s, .pred_class)
+
+# roc curve
+final_lgb_res |> 
+  collect_predictions() |> 
+  roc_curve(forced_turnover_within_5s, .pred_FALSE) |> 
+  autoplot()
+
+#### SAVE ######################################################################
+
+dir.create("model_results", showWarnings = FALSE)
+
+# final model results
+saveRDS(final_xgb_res, "model_results/final_xgb_res.rds")
+saveRDS(final_lgb_res, "model_results/final_lgb_res.rds")
+
+# tuning results
+saveRDS(xgb_res, "model_results/xgb_tuning_res.rds")
+saveRDS(lgb_res, "model_results/lgb_tuning_res.rds")
+
+# hyperparameters
+saveRDS(best_xgb, "model_results/best_xgb_params.rds")
+saveRDS(best_lgb, "model_results/best_lgb_params.rds")
+
+# training/test data
+saveRDS(pressing_split, "model_results/data_split.rds")
+
+#### MODEL COMPARISON ##########################################################
+
+model_comparison <- bind_rows(
+  final_xgb_res |> 
+    collect_metrics() |> 
+    mutate(model = "XGBoost"),
+  final_lgb_res |> 
+    collect_metrics() |> 
+    mutate(model = "LightGBM")
+)
+
+model_comparison |> 
+  select(model, .metric, .estimate) |> 
+  pivot_wider(names_from = .metric, values_from = .estimate) |> 
+  arrange(desc(roc_auc))
 
 
-usemodels::use_ranger(forced_turnover_within_5s ~ ., data = pressing_train)
-# Copy code from console
-ranger_recipe <- 
-  recipe(formula = forced_turnover_within_5s ~ ., data = pressing_train) 
+#### COMBINED ROC CURVE ########################################################
 
-ranger_spec <- 
-  rand_forest(trees = 1000) %>% 
-  set_mode("classification") %>% 
-  set_engine("ranger") 
+all_predictions <- bind_rows(
+  final_xgb_res |> 
+    collect_predictions() |> 
+    mutate(model = "XGBoost"),
+  final_lgb_res |> 
+    collect_predictions() |> 
+    mutate(model = "LightGBM")
+)
 
-ranger_workflow <- 
-  workflow() %>% 
-  add_recipe(ranger_recipe) %>% 
-  add_model(ranger_spec) 
 
-doParallel::registerDoParallel()
-set.seed(98631)
-ranger_tune <-
-  fit_resamples(ranger_workflow, 
-            resamples = pressing_folds,
-            control = control_resamples(save_pred = TRUE))
+all_predictions |> 
+  group_by(model) |> 
+  roc_curve(forced_turnover_within_5s, .pred_FALSE) |> 
+  autoplot(size = 15) +
+  labs(
+    title = "ROC Curves: Model Comparison",
+    subtitle = "Pressing Sequence Turnover Prediction"
+  ) +
+  theme_light()
 
 
 
