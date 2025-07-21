@@ -1,0 +1,12 @@
+---
+title: "Forced Turnover:<br>Evaluating Pressing Effectiveness in Soccer"
+author: Natalie Rayce, David Almona
+editor: visual
+format:
+  revealjs:
+    slide-number: true
+    embed-resources: true
+    preview-links: auto
+    # transition: slide
+    # smaller: true
+---
