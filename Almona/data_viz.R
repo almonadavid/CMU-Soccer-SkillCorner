@@ -25,11 +25,39 @@ pressing_data <- fread("results/all_games_pressing_sequences.csv") |>
   mutate_if(is.logical, as.factor)
 
 
+pressing_data <- pressing_data |>
+  mutate(forced_turnover_within_5s = as.factor(ifelse(forced_turnover_within_5s == TRUE, "Yes", "No")))
+
+
+# handling NAs
+pressing_data <- pressing_data |>
+  mutate(
+    incoming_pass_range_received_missing = is.na(incoming_pass_range_received),
+    incoming_high_pass_missing = is.na(incoming_high_pass),
+    incoming_pass_distance_received_missing = is.na(incoming_pass_distance_received),
+    ball_carrier_speed_missing = is.na(ball_carrier_speed),
+    incoming_pass_range_received = factor(ifelse(is.na(incoming_pass_range_received), 
+                                                 "unknown", as.character(incoming_pass_range_received))),
+    incoming_high_pass = factor(ifelse(is.na(incoming_high_pass), 
+                                       "unknown", as.character(incoming_high_pass))),
+    incoming_pass_distance_received = ifelse(is.na(incoming_pass_distance_received), 
+                                             -1, incoming_pass_distance_received),
+    ball_carrier_speed = ifelse(is.na(ball_carrier_speed), 
+                                -1, ball_carrier_speed),
+    incoming_pass_range_received_missing = factor(incoming_pass_range_received_missing),
+    incoming_high_pass_missing = factor(incoming_high_pass_missing),
+    incoming_pass_distance_received_missing = factor(incoming_pass_distance_received_missing),
+    ball_carrier_speed_missing = factor(ball_carrier_speed_missing),
+    minutes_remaining_half = ifelse(is.na(minutes_remaining_half), median(minutes_remaining_half, na.rm = TRUE), minutes_remaining_half),
+    minutes_remaining_game = ifelse(is.na(minutes_remaining_game), median(minutes_remaining_game, na.rm = TRUE), minutes_remaining_game)
+  )
+
+
 ## 1. Season Pressing Heatmap ####################################################################################################
 
 heat_palette <- paletteer::paletteer_d("RColorBrewer::YlOrRd", n = 9, direction = 1)
 
-ggplot(data = test, aes(x = ball_carrier_x, y = ball_carrier_y)) +
+ggplot(data = pressing_data, aes(x = ball_carrier_x, y = ball_carrier_y)) +
   geom_point(size = 0.8, alpha = 0.4, color = "white") +
   geom_density_2d_filled(aes(fill = after_stat(level)),
                          contour_var = "ndensity", 
@@ -65,6 +93,8 @@ ggplot(data = test, aes(x = ball_carrier_x, y = ball_carrier_y)) +
 
 ## 2. Andrienko et al., 2017 "pressure zone" #####################################################################################
 
+library(ggtext)
+library(ggforce)
 
 Dfront <- 9
 Dback <- 3
@@ -100,7 +130,7 @@ oval_plot <- ggplot() +
   labs(title = "Oval Pressure Zone (Andrienko et al. 2017)",
        subtitle = sprintf("Dfront = %dm (orange), Dback = %dm (purple)", Dfront, Dback),
        x = "Distance (m)", y = NULL) +
-  theme_light()
+  theme_bw()
 
 
 
@@ -122,43 +152,39 @@ circle_plot <- ggplot() +
   labs(title = "Our Initial Pressure Zone Idea (Circular)",
        subtitle = sprintf("Dfront = 6m, Dback = 6m"),
        x = "Distance (m)", y = "Distance (m)") +
-  theme_light()
+  theme_bw()
 
 
 circle_plot + oval_plot + plot_layout(ncol = 2)
 
 
-## 3. xxx #######################################################################################
+## 3. TEAM ANALYSIS #######################################################################################
   
-lgb_predictions <- final_lgb |>
-  fit(data = pressing_train) |>
-  augment(new_data = pressing_data) |>
-  select(.pred_TRUE) |>
-  rename(xP_lgb = .pred_TRUE)
+xg_predictions <- predict(xg_tune, newdata = pressing_data, type = "prob") |>
+  select(Yes) |>
+  rename(xP_xg = Yes)
 
 
-pressing_data <- cbind(pressing_data, lgb_predictions)
-pressing_data[, `:=`(
-  turnover_actual = as.numeric(forced_turnover_within_5s == "TRUE"),
-  xP_diff_lgb = turnover_actual - xP_lgb
-)]
+pressing_data <- cbind(pressing_data, xg_predictions)
+pressing_data[, turnover_actual := as.numeric(forced_turnover_within_5s == "Yes")]
+pressing_data[, xP_diff_xg := turnover_actual - xP_xg]
 
 
 pressing_team <- pressing_data[, .(
   games_played = uniqueN(match_id),
   actual_turnovers = sum(turnover_actual),
-  expected_turnovers = sum(xP_lgb),
-  xP_diff = sum(xP_diff_lgb),
-  xp_diff_per_game = sum(xP_diff_lgb) / uniqueN(match_id)
+  expected_turnovers = sum(xP_xg),
+  xP_diff = sum(xP_diff_xg),
+  xp_diff_per_game = sum(xP_diff_xg) / uniqueN(match_id)
 ), by = pressing_team_name][order(-xP_diff)]
 
 
 pressed_team <- pressing_data[, .(
   games_played = uniqueN(match_id),
   actual_turnovers = sum(turnover_actual),
-  expected_turnovers = sum(xP_lgb),
-  xP_diff = sum(xP_diff_lgb),
-  xp_diff_per_game = sum(xP_diff_lgb) / uniqueN(match_id)
+  expected_turnovers = sum(xP_xg),
+  xP_diff = sum(xP_diff_xg),
+  xp_diff_per_game = sum(xP_diff_xg) / uniqueN(match_id)
 ), by = pressed_team_name][order(-xP_diff)]
 
 
@@ -170,25 +196,20 @@ pressing_team |>
   coord_flip() +
   scale_fill_manual(values = c("#d7191c", "#2b83ba"), 
                     labels = c("Below Expected", "Above Expected")) +
-  labs(title = "Team Pressing Performance vs Expected (Per Game)",
-       subtitle = "Positive values indicate teams forcing more turnovers than predicted",
-       x = "", y = "Turnovers Above/Below Expected per Game",
+  labs(x = "", y = "Turnovers Above/Below Expected per Game",
        fill = "") +
-  theme_light()
+  theme_bw()
 
-# Scatterplot - Actual vs Expected
+
+# Calibration plot: Actual vs Expected
 pressing_team |> # replace points with team logos
   ggplot(aes(x = expected_turnovers, y = actual_turnovers)) +
   geom_point(alpha = 0.6) +
   geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "red") +
-  ggrepel::geom_text_repel(
-    aes(label = pressing_team_name)
-  ) +
-  labs(title = "Actual vs Expected Turnovers by Team",
-       subtitle = "Points above the line exceed expectations",
-       x = "Expected Turnovers (xP)",
+  labs(x = "Expected Turnovers (xP)",
        y = "Actual Turnovers") +
-  theme_light()
+  coord_fixed() +
+  theme_bw()
 
 
 # xP vs xP Diff
@@ -210,9 +231,160 @@ pressing_team |>
        subtitle = "2023 Season",
        x = "Expected Turnovers per Game (Pressing Volume)",
        y = "Actual - Expected per Game (Pressing Effectiveness)") +
-  theme_light() +
-  annotate("text", x = Inf, y = Inf, label = "High Volume\nOverperforming", 
-           hjust = 1.1, vjust = 1.1, alpha = 0.5) +
-  annotate("text", x = -Inf, y = Inf, label = "Low Volume\nOverperforming", 
-           hjust = -0.1, vjust = 1.1, alpha = 0.5)
+  theme_bw()
+
+
+library(ggimage)
+
+# add logos
+pressing_team <- pressing_team |>
+  mutate(
+    xP_per_game = expected_turnovers / games_played,
+    xP_diff_per_game = xp_diff_per_game,
+    logo_path = paste0("logos/", pressing_team_name, ".png")
+  )
+
+ggplot(pressing_team, aes(x = xP_per_game, y = xP_diff_per_game)) +
+  geom_hline(yintercept = 0, linetype = "dashed", alpha = 0.5) +
+  geom_vline(xintercept = median(pressing_team$xP_per_game), 
+             linetype = "dashed", alpha = 0.5) +
+  ggimage::geom_image(aes(image = logo_path), size = 0.07) +
+  labs(
+    x = "Expected Turnovers per Game (Pressing Volume)",
+    y = "Actual - Expected per Game (Pressing Effectiveness)"
+  ) +
+  theme_bw()
+
+
+## 4. Save Model SUm Stats table ###############################################################
+library(gt)
+
+model_summary_gt <- model_summary |>
+  gt() |>
+  tab_header(title = md("**Model Performance Summary**")) |>
+  cols_label(
+    AUC = "AUC",
+    Accuracy = "Accuracy",
+    Log_Loss = "Log Loss"
+  ) |>
+  fmt_percent(columns = Accuracy, decimals = 1) |>
+  fmt_number(columns = c(AUC, Log_Loss), decimals = 3) |>
+  tab_style(
+    style = cell_borders(sides = c("left", "right"), color = "lightgrey", weight = px(1)),
+    locations = list(
+      cells_body(columns = everything()),
+      cells_column_labels(columns = everything())
+    )
+  )
+
+gtsave(model_summary_gt, "model_summary.png")
+
+
+## 5. Turnover rate by start_type table #######################################################
+
+pressing_summary_gt <- pressing_data |>
+  group_by(start_type) |>
+  summarise(
+    total_possessions = n(),
+    turnovers = sum(turnover_actual),
+    turnover_prop = turnovers / total_possessions
+  ) |>
+  arrange(desc(turnover_prop)) |>
+  gt() |>
+  tab_header(title = md("**Turnover Rate by Start Type**")) |>
+  cols_label(
+    start_type = "Start Type",
+    total_possessions = "Total Possessions", 
+    turnovers = "Turnovers",
+    turnover_prop = "Turnover Rate"
+  ) |>
+  fmt_number(columns = c(total_possessions, turnovers), decimals = 0) |>
+  fmt_percent(columns = turnover_prop, decimals = 1) |>
+  tab_style(
+    style = cell_borders(sides = c("left", "right"), color = "lightgray", weight = px(1)),
+    locations = list(
+      cells_body(columns = everything()),
+      cells_column_labels(columns = everything())
+    )
+  )
+
+gtsave(pressing_summary_gt, "turnover_start_type.png")
+
+
+## 6. ROC Curve ################################################################################
+
+roc_data <- bind_rows(
+  tibble(
+    fpr = 1 - logit_roc$specificities,
+    tpr = logit_roc$sensitivities,
+    model = "Logistic"
+  ),
+  tibble(
+    fpr = 1 - xg_roc$specificities,
+    tpr = xg_roc$sensitivities,
+    model = "XGBoost"
+  )
+)
+
+
+roc_plot <- ggplot(roc_data, aes(x = fpr, y = tpr, color = model)) +
+  geom_line(linewidth = 1) +
+  geom_abline(intercept = 0, slope = 1, linetype = "dashed", color = "gray") +
+  scale_color_manual(
+    values = c("Logistic" = "blue", "XGBoost" = "red"),
+    labels = c(paste("Logistic (AUC =", round(auc(logit_roc), 3), ")"),
+               paste("XGBoost (AUC =", round(auc(xg_roc), 3), ")"))
+  ) +
+  labs(
+    x = "(1 - Specificity)",
+    y = "(Sensitivity)",
+    color = "Model"
+  ) +
+  theme_bw() +
+  coord_fixed()
+
+## 7. Pressing vs when being pressed ###################################################
+
+team_comparison <- merge(
+  pressing_team[, .(team = pressing_team_name, pressing_xp_diff = xp_diff_per_game)],
+  pressed_team[, .(team = pressed_team_name, pressed_xp_diff = xp_diff_per_game)],
+  by = "team"
+)
+
+team_comparison |> 
+  ggplot(aes(x = pressing_xp_diff, y = -pressed_xp_diff)) +
+  geom_hline(yintercept = 0, linetype = "dashed", alpha = 0.5) +
+  geom_vline(xintercept = 0, linetype = "dashed", alpha = 0.5) +
+  geom_point(alpha = 0.7) +
+  ggrepel::geom_text_repel(aes(label = team), size = 3) +
+  labs(
+    title = "MLS Team Pressing Profile: Offensive vs Defensive",
+    subtitle = "2023 Season Performance",
+    x = "Pressing Effectiveness\n(Turnovers Above/Below Expected per Game)",
+    y = "Press Resistance\n(Turnovers Prevented Above/Below Expected per Game)",
+    caption = "Top-right quadrant: Elite at both pressing and resisting pressure"
+  ) +
+  theme_bw()
+
+
+library(ggimage)
+
+# add logos
+team_comparison <- team_comparison |>
+  mutate(logo_path = paste0("logos/", team, ".png"))
+
+
+pressing_vs_pressed_plot <- team_comparison |> 
+  ggplot(aes(x = pressing_xp_diff, y = -pressed_xp_diff)) +
+  geom_hline(yintercept = 0, linetype = "dashed", alpha = 0.5) +
+  geom_vline(xintercept = 0, linetype = "dashed", alpha = 0.5) +
+  ggimage::geom_image(aes(image = logo_path), size = 0.07) +
+  labs(
+    x = "Pressing Effectiveness\n(Turnovers Above/Below Expected per Game)",
+    y = "Press Resistance\n(Turnovers Prevented Above/Below Expected per Game)"
+  ) +
+  theme_bw()
+
+pressing_vs_pressed_plot
+
 

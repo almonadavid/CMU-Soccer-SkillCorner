@@ -1,35 +1,11 @@
----
-title: "Forced Turnover Prediction: Evaluating Pressing Effectiveness in Soccer"
-author: "[enter name]"
-date: "2025-07-16"
-output:
-  html_document:
-    code_folding: show
----
-
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
-
-# Introduction
-
-Here, we are analyzing pressing sequences in soccer to predict whether they will result in a forced turnover within 5 seconds after the pressing sequence starts. We'll start by loading our data and doing some basic preprocessing.
-
-
-## Libraries
-```{r libraries, message=FALSE, warning=FALSE}
 library(tidyverse)
 library(data.table)
+library(ranger)
 library(tidymodels)
 library(tictoc)
-theme_set(theme_light())
-```
 
 
-## Data Loading and Preparation
-Our dataset contains pressing sequences from 10 MLS matches in the 2023 season. Each row represents a pressing sequence with various spatio-temporal variables.
-
-```{r load-data, message=FALSE}
+#### Load Data ####
 pressing_data <- fread("results/all_games_pressing_sequences.csv") |>
   filter(
     between(ball_carrier_x, -52.5, 52.5),
@@ -47,84 +23,28 @@ pressing_data <- fread("results/all_games_pressing_sequences.csv") |>
   ) |> 
   mutate_if(is.character, as.factor) |> 
   mutate_if(is.logical, as.factor)
-```
-
-```{r}
-# head(pressing_data)
-glimpse(pressing_data)
-
-library(skimr)
-skim(pressing_data)
-```
 
 
-## Exploratory Data Analysis
-```{r velocity-distance-plot}
-ggplot(pressing_data, aes(x = avg_approach_velocity, y = dist_to_attacking_goal, 
-                         color = forced_turnover_within_5s)) +
-  geom_point(alpha = 0.6) +
-  labs(
-    x = "Average Approach Velocity",
-    y = "Distance to Attacking Goal (m)",
-    color = "Forced Turnover",
-  )
-```
-
-```{r start-type-plot}
-ggplot(pressing_data, aes(start_type, fill = forced_turnover_within_5s)) +
-  geom_bar(position = "fill") +
-  coord_flip() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-  labs(y = "proportion")
-```
-
-```{r start-type-plot-2}
-ggplot(pressing_data, aes(start_type, fill = forced_turnover_within_5s)) +
-  geom_bar(position = "dodge") +
-  labs(y = "Count") +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-```
-
-```{r field-third-plot}
-ggplot(pressing_data, aes(poss_third_start, fill = forced_turnover_within_5s)) +
-  geom_bar(position = "fill") +
-  coord_flip() +
-  labs(
-    y = "Proportion", 
-    x = "Possession Third", 
-    fill = "Turnover"
-  )
-```
-
-
-## Build models with `tidymodels`
-
-### Create training and testing sets
-```{r}
+# Create training and testing sets
 set.seed(123)
 pressing_split <- initial_split(pressing_data, strata = forced_turnover_within_5s)
-# pressing_train <- training(pressing_split)
-# pressing_test <- testing(pressing_split)
-```
+pressing_train <- training(pressing_split)
+pressing_test <- testing(pressing_split)
 
-### Preparing the recipe
-```{r}
-pressing_rec <- recipe(forced_turnover_within_5s ~ ., data = pressing_data) |>
+
+# Recipe
+pressing_rec <- recipe(forced_turnover_within_5s ~ ., data = pressing_train) |>
   step_unknown(all_nominal_predictors(), new_level = "missing") |>
   step_dummy(all_nominal_predictors()) |>
   step_zv(all_predictors())
-```
 
-### 10-fold cross validation
-```{r}
-pressing_folds <- group_vfold_cv(pressing_data, v = 10, group = match_id)
+# Folds
+pressing_folds <- vfold_cv(pressing_train, v = 10, strata = forced_turnover_within_5s)
 
 pressing_folds
-```
 
+#### XGBOOST ###################################################################################################
 
-## Model 1. XGBoost Model
-```{r}
 xgb_spec <- boost_tree(
   trees = tune(),
   tree_depth = tune(), 
@@ -140,45 +60,35 @@ xgb_spec <- boost_tree(
              validation = 0.2) |>
   set_mode("classification")
 
-xgb_spec
-```
+#xgb_spec
+#_______________________________________
 
-
-### Hyperparameter grid
-```{r}
 xgb_grid <- grid_space_filling(
   trees(range = c(100, 1000)),
   tree_depth(),
   min_n(),
   loss_reduction(),
   sample_size = sample_prop(),
-  finalize(mtry(), pressing_data),
+  finalize(mtry(), pressing_train),
   learn_rate(),
   size = 20
   
 )
 
-xgb_grid
-```
+#xgb_grid
+#______________________________________
 
-
-### Workflow Setup
-```{r}
 xgb_wf <- workflow() |> 
   add_recipe(pressing_rec) |> 
   add_model(xgb_spec)
 
-xgb_wf
-```
+#xgb_wf
+#_____________________________________
 
-
-###  Hyperparamter tuning
-```{r xgb-tuning, cache=TRUE, warning=FALSE}
 library(future)
 plan(multisession, workers = parallel::detectCores() - 1)
 
 set.seed(456)
-
 tic("XGBoost Tuning")
 xgb_res <- tune_race_anova(
   xgb_wf,
@@ -188,18 +98,12 @@ xgb_res <- tune_race_anova(
     save_pred = TRUE,
     verbose_elim = TRUE)
 )
-
-xgb_res
-
+#xgb_res
 toc()
-
 gc()
+#__________________________________________
 
-```
-
-
-### Explore Results
-```{r}
+#### Explore Results ####
 xgb_res |> 
   collect_metrics() |> 
   filter(.metric == "roc_auc") |> 
@@ -210,69 +114,45 @@ xgb_res |>
   ggplot(aes(value, mean, color = parameter)) +
   geom_point(show.legend = FALSE) +
   facet_wrap(~parameter, scales = "free_x")
-```
+#____________________________________________
 
-
-### Best Performing Model
-```{r show-best}
 show_best(xgb_res, metric = "roc_auc")
 
 best_xgb <- select_best(xgb_res, metric = "roc_auc")
-```
 
-
-
-
-
-### Finalize workflow
-```{r}
 final_xgb <- finalize_workflow(xgb_wf, best_xgb)
+#final_xgb
+#____________________________________
 
-final_xgb
-```
-
-### Variable Importance
-Which features are most important for predicting pressing success?
-```{r}
 library(vip)
-
 final_xgb |> 
-  fit(data = pressing_data) |> 
+  fit(data = pressing_train) |> 
   extract_fit_parsnip() |> 
   vip()
-```
+#___________________________________
 
-### Final Evaluation
-Let's see how our model performs on unseen data:
-```{r}
 final_xgb_res <- last_fit(final_xgb, pressing_split)
 
 final_xgb_res |> 
-  collect_metrics()
-```
+  collect_metrics() 
+#__________________________________
 
-### Confusion matrix
-```{r}
+# confusion matrix
 final_xgb_res |> 
   collect_predictions() |> 
   conf_mat(forced_turnover_within_5s, .pred_class)
-```
 
-### ROC cuve
-```{r}
+# roc curve
 final_xgb_res |> 
   collect_predictions() |> 
   roc_curve(forced_turnover_within_5s, .pred_FALSE) |> 
   autoplot()
-```
 
 
-
-
-## Model 2. LightGBM Model
-```{r}
+#### LIGHT GBM #############################################################
 library(bonsai)
 
+# Model specification
 lgb_spec <- boost_tree(
   trees = tune(),
   tree_depth = tune(),
@@ -289,43 +169,34 @@ lgb_spec <- boost_tree(
   set_mode("classification")
 
 #lgb_spec
-```
+#_____________________________________________________
 
-
-### Hyperparameter grid
-```{r}
+#hyperparameter grid
 lgb_grid <- grid_space_filling(
   trees(),
   tree_depth(),
   min_n(),
   loss_reduction(),
   sample_size = sample_prop(),
-  finalize(mtry(), pressing_data),
+  finalize(mtry(), pressing_train),
   learn_rate(),
   size = 20
 )
 
-lgb_grid
-```
+#lgb_grid
 
+#___________________________________________________
 
-### Workflow Setup
-```{r}
 lgb_wf <- workflow() |> 
   add_recipe(pressing_rec) |> 
   add_model(lgb_spec)
 
-lgb_wf
-```
-
-
-###  Hyperparamter tuning
-```{r xgb-tuning, cache=TRUE, warning=FALSE}
+#lgb_wf
+#___________________________________________________
 library(future)
 plan(multisession, workers = parallel::detectCores() - 1)
 
 set.seed(456)
-
 tic("LightGBM Tuning")
 lgb_res <- tune_race_anova(
   lgb_wf,
@@ -335,81 +206,45 @@ lgb_res <- tune_race_anova(
     save_pred = TRUE,
     verbose_elim = TRUE)
 )
-
 toc()
+#lgb_res
 
-lgb_res
+#__________________________________________________
 
-```
-
-
-### Explore Results
-```{r}
-xgb_res |> 
-  collect_metrics() |> 
-  filter(.metric == "roc_auc") |> 
-  select(mean, mtry:sample_size) |> 
-  pivot_longer(mtry:sample_size, 
-               names_to = "parameter",
-               values_to = "value") |> 
-  ggplot(aes(value, mean, color = parameter)) +
-  geom_point(show.legend = FALSE) +
-  facet_wrap(~parameter, scales = "free_x")
-```
-
-
-### Best Performing Model
-```{r show-best}
 show_best(lgb_res, metric = "roc_auc")
 
 best_lgb <- select_best(lgb_res, metric = "roc_auc")
-```
 
-### Finalize workflow
-```{r}
 final_lgb <- finalize_workflow(lgb_wf, best_lgb)
+#final_lgb
+#____________________________________
 
-final_lgb
-```
-
-### Variable Importance
-Which features are most important for predicting pressing success?
-```{r}
 library(vip)
-
 final_lgb |> 
-  fit(data = pressing_data) |> 
+  fit(data = pressing_train) |> 
   extract_fit_parsnip() |> 
   vip()
-```
+#___________________________________
 
-### Final Evaluation
-Let's see how our model performs on unseen data:
-```{r}
 final_lgb_res <- last_fit(final_lgb, pressing_split)
 
 final_lgb_res |> 
   collect_metrics() 
-```
+#__________________________________
 
-### Confusion matrix
-```{r}
+# confusion matrix
 final_lgb_res |> 
   collect_predictions() |> 
   conf_mat(forced_turnover_within_5s, .pred_class)
-```
 
-### ROC cuve
-```{r}
+# roc curve
 final_lgb_res |> 
   collect_predictions() |> 
   roc_curve(forced_turnover_within_5s, .pred_FALSE) |> 
   autoplot()
-```
 
+#### SAVE ######################################################################
 
-## Save Results
-```{r save}
 dir.create("model_results", showWarnings = FALSE)
 
 # final model results
@@ -426,11 +261,9 @@ saveRDS(best_lgb, "model_results/best_lgb_params.rds")
 
 # training/test data
 saveRDS(pressing_split, "model_results/data_split.rds")
-```
 
+#### MODEL COMPARISON ##########################################################
 
-## Model Comparison
-```{r}
 model_comparison <- bind_rows(
   final_xgb_res |> 
     collect_metrics() |> 
@@ -444,11 +277,10 @@ model_comparison |>
   select(model, .metric, .estimate) |> 
   pivot_wider(names_from = .metric, values_from = .estimate) |> 
   arrange(desc(roc_auc))
-```
 
 
-## Combined ROC Curve
-```{r}
+#### COMBINED ROC CURVE ########################################################
+
 all_predictions <- bind_rows(
   final_xgb_res |> 
     collect_predictions() |> 
@@ -466,6 +298,8 @@ all_predictions |>
   labs(
     title = "ROC Curves: Model Comparison",
     subtitle = "Pressing Sequence Turnover Prediction"
-  )
-```
+  ) +
+  theme_light()
+
+
 
