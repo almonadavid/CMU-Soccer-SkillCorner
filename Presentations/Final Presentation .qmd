@@ -46,6 +46,10 @@ format:
 
 ::: fragment
 -   Be within **3 meters** behind the ball carrier or **9 meters** in front of the ball carrier, **AND**
+:::
+
+
+::: fragment
 -   Either be approaching at more than 1.0 meters per second OR show close engagement behaviors
 :::
 
