@@ -25,6 +25,34 @@ format:
  
 :::
 ## Data 
+
+::: fragment
+-   **Dataset:** 521 matches in the MLS 2023 season
+:::
+
+::: fragment
+-   **Source:** SkillCorner
+:::
+
+::: fragment
+-   **Three data types:**
+    -   **Match information:** game details (teams, pitch, referee)
+    -   **Event data:** player actions (passes, shots, tackles) with timestamps and coordinates
+    -   **Tracking data:** real-time positions of all players and ball (10 Hz)
+:::
+
+
 ## Methods
 ## Results
 ## Discussion
+
+::: fragment
+- **Limitations:**
+  -   Inaccuracy in SkillCorner data
+  -   Individual player skill and tactical tendencies not considered in the model
+  -   Our model does not account for pitch control
+
+- **Future Works:**
+  -   Incorporate pressing intensity calculations 
+  -   Incorporate pitch control 
+:::
