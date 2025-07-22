@@ -49,7 +49,7 @@ format:
 -   Either be approaching at more than 1.0 meters per second OR show close engagement behaviors
 :::
 
-##\*Fix Image\*\*
+##
 
 ```{r}
 library(magick)
@@ -84,7 +84,7 @@ my_plot_ggplot
     -   duration, number of defenders involved and average defender velocity at the start
 :::
 
-##Feature Engineering
+## Feature Engineering
 
 ::: fragment
 -   **Spatial Context:** Ball carrier position, distance to boundaries, field third
@@ -111,8 +111,45 @@ my_plot_ggplot
   - All models evaluated using 10-fold cross-validation
 :::
 
+## Model Performance
+
+```{r}
+library(magick)
+#| label: fig-plot
+#| include: TRUE
+#| echo: FALSE
+#| eval: TRUE
+#| warning: FALSE
+#| message: FALSE
+#| fig.width: 24
+#| fig.height: 16
+#| fig.cap: "plot"
+
+# save image as ggplot
+my_plot_ggplot <- image_read("model_summary.png") %>% 
+  image_ggplot(interpolate = TRUE)
+my_plot_ggplot
+```
 
 ## Results
+
+```{r}
+library(magick)
+#| label: fig-plot
+#| include: TRUE
+#| echo: FALSE
+#| eval: TRUE
+#| warning: FALSE
+#| message: FALSE
+#| fig.width: 24
+#| fig.height: 16
+#| fig.cap: "plot"
+
+# save image as ggplot
+my_plot_ggplot <- image_read("diverging_plot.png") %>% 
+  image_ggplot(interpolate = TRUE)
+my_plot_ggplot
+```
 
 ## Discussion
 
@@ -121,7 +158,12 @@ my_plot_ggplot
     -   Inaccuracy in SkillCorner data
     -   Individual player skill and tactical tendencies not considered in the model
     -   Our model does not account for pitch control
+    
+:::
+
+::: fragment
 -   **Future Works:**
     -   Incorporate pressing intensity calculations
     -   Incorporate pitch control
+    
 :::
