@@ -10,6 +10,7 @@ format:
     # transition: slide
     # smaller: true
 ---
+
 ## Introduction
 
 ::: fragment
@@ -22,9 +23,9 @@ format:
 
 ::: fragment
 **Main Question:** Can the effectiveness of a press in soccer be predicted using factors such as spatial context, pressing dynamics, game context and situational factors
- 
 :::
-## Data 
+
+## Data
 
 ::: fragment
 -   **Dataset:** 521 matches in the MLS 2023 season
@@ -41,18 +42,78 @@ format:
     -   **Tracking data:** real-time positions of all players and ball (10 Hz)
 :::
 
+## Methods: Detecting "Pressure Zones"
 
-## Methods
+::: fragment
+-   Be within **3 meters** behind the ball carrier or **9 meters** in front of the ball carrier, **AND**
+-   Either be approaching at more than 1.0 meters per second OR show close engagement behaviors
+:::
+
+##\*Fix Image\*\*
+
+```{r}
+library(magick)
+#| label: fig-plot
+#| include: TRUE
+#| echo: FALSE
+#| eval: TRUE
+#| warning: FALSE
+#| message: FALSE
+#| fig.width: 24
+#| fig.height: 16
+#| fig.cap: "plot"
+
+# save image as ggplot
+my_plot_ggplot <- image_read("combined_pressure_zone.png") %>% 
+  image_ggplot(interpolate = TRUE)
+my_plot_ggplot
+```
+
+## Methods: Detecting Pressure Sequences
+
+::: fragment
+-   Pressing actions were grouped into sequences if at least one defender continued pressing, allowing gaps of up to 1.5 seconds.
+:::
+
+::: fragment
+-   A new sequence was defined after any pause longer than 1.5 seconds.
+:::
+
+::: fragment
+-   For each sequence, the following features were recorded:
+    -   duration, number of defenders involved and average defender velocity at the start
+:::
+
+##Feature Engineering
+
+::: fragment
+-   **Spatial Context:** Ball carrier position, distance to boundaries, field third
+:::
+
+::: fragment
+-   **Pressing Dynamics:** Number of defenders, approach velocity, passing options
+:::
+
+::: fragment
+-   **Game Context:** Score, game state (winning/losing/drawing), time remaining
+:::
+
+::: fragment
+-   **Situational Factors:** How ball carrier gained possession (pass reception, interception, etc.), incoming pass characteristics (distance, height, range)
+:::
+
+## Modeling
+
 ## Results
+
 ## Discussion
 
 ::: fragment
-- **Limitations:**
-  -   Inaccuracy in SkillCorner data
-  -   Individual player skill and tactical tendencies not considered in the model
-  -   Our model does not account for pitch control
-
-- **Future Works:**
-  -   Incorporate pressing intensity calculations 
-  -   Incorporate pitch control 
+-   **Limitations:**
+    -   Inaccuracy in SkillCorner data
+    -   Individual player skill and tactical tendencies not considered in the model
+    -   Our model does not account for pitch control
+-   **Future Works:**
+    -   Incorporate pressing intensity calculations
+    -   Incorporate pitch control
 :::
