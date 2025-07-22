@@ -21,9 +21,12 @@ format:
 **Forced Turnover:** when a player loses possession due to opponent pressure, resulting in the opposing team gaining control. This includes misplaced passes, interceptions, successful tackles, or losing control under pressure - all direct results of effective defensive pressure
 :::
 
-::: fragment
-**Main Question:** Can the effectiveness of a press in soccer be predicted using factors such as spatial context, pressing dynamics, game context and situational factors
-:::
+
+
+
+## Main Question
+Can the effectiveness of a press in soccer be predicted using factors such as spatial context, pressing dynamics, game context and situational factors?
+
 
 ## Data
 
