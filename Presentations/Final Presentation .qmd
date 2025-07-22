@@ -64,7 +64,7 @@ library(magick)
 #| fig.cap: "plot"
 
 # save image as ggplot
-my_plot_ggplot <- image_read("combined_pressure_zone.png") %>% 
+my_plot_ggplot <- image_read("pressure_zone.png") %>% 
   image_ggplot(interpolate = TRUE)
 my_plot_ggplot
 ```
@@ -103,6 +103,14 @@ my_plot_ggplot
 :::
 
 ## Modeling
+
+::: fragment
+- **Model:**  
+  - Logistic Regression  
+  - XGBoost  
+  - All models evaluated using 10-fold cross-validation
+:::
+
 
 ## Results
 
