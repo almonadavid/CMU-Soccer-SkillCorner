@@ -1,30 +1,201 @@
 ---
 title: "Forced Turnover:<br>Evaluating Pressing Effectiveness in Soccer"
-author: Natalie Rayce, David Almona
+author:
+  - name: Natalie Rayce
+    affiliation: Carnegie Mellon University
+  - name: David Almona
+    affiliation: Centre College
 editor: visual
 format:
   revealjs:
     slide-number: true
     embed-resources: true
     preview-links: auto
-    # transition: slide
-    # smaller: true
+    smaller: true
 ---
-## Introduction
 
-::: fragment
+## Turning Defense to Attack
+:::{.video}
+![](mancity_counterpressing.mp4)
+:::
+Manchester City wins back possession seconds after losing it through pressing.
+
+
+# Main Question
+Can the effectiveness of a press in soccer be predicted using factors such as spatial context, pressing dynamics, game context and situational factors?
+
+# Key Terms
 **Pressing:** a defensive tactic where players apply coordinated pressure on the opponent with the ball to force mistakes, win back possession, and quickly transition to attack
-:::
 
-::: fragment
 **Forced Turnover:** when a player loses possession due to opponent pressure, resulting in the opposing team gaining control. This includes misplaced passes, interceptions, successful tackles, or losing control under pressure - all direct results of effective defensive pressure
+
+
+## Data
+
+-   **Dataset:** 520 matches in the MLS 2023 season
+
+-   **Three data types:**
+    -   **Match information:** game details (teams, pitch, referee)
+    -   **Event data:** player actions (passes, shots, tackles) with timestamps and coordinates
+    -   **Tracking data:** real-time positions of all players and ball at 10 Hz
+
+
+-   **Source:**
+
+![](skillcorner.png)
+
+
+## The Pressure Zone
+
+-   Be within **6 meters** of the ball carrier
+
+:::: {.columns}
+::: {.column width = "70%"}
+::: fragment
+![](old_zone.png){height="500"}
+:::
+:::
+
+::: {.column width="30%"}
+::: {.fragment}
+**Problem:** 6-meter radius doesn't account for direction
+
+- Equal threat from all angles?
+- Oversimplifies pressing
+:::
+:::
+::::
+
+## Circular Pressure Zones Ignore Directional Threats
+
+:::: {.columns}
+::: {.column width="60%"}
+![](old_zone.png){height="500"}
+:::
+
+::: {.column width="40%"}
+::: {.fragment}
+**Problem:** 6-meter radius doesn't account for direction
+
+- Equal threat from all angles?
+- Ignores player orientation
+- Oversimplifies pressure dynamics
+:::
+:::
+::::
+
+## The Pressure Zone: Revised
+
+
+
+## Methods: Detecting Pressure Sequences
+
+::: fragment
+-   Pressing actions were grouped into sequences if at least one defender continued pressing, allowing gaps of up to 1.5 seconds.
 :::
 
 ::: fragment
-**Main Question:** Can the effectiveness of a press in soccer be predicted using factors such as spatial context, pressing dynamics, game context and situational factors
- 
+-   A new sequence was defined after any pause longer than 1.5 seconds.
 :::
-## Data 
-## Methods
+
+::: fragment
+-   For each sequence, the following features were recorded:
+    -   duration, number of defenders involved and average defender velocity at the start
+:::
+
+## Feature Engineering
+
+::: fragment
+-   **Spatial Context:** Ball carrier position, distance to boundaries, field third
+:::
+
+::: fragment
+-   **Pressing Dynamics:** Number of defenders, approach velocity, passing options
+:::
+
+::: fragment
+-   **Game Context:** Score, game state (winning/losing/drawing), time remaining
+:::
+
+::: fragment
+-   **Situational Factors:** How ball carrier gained possession (pass reception, interception, etc.), incoming pass characteristics (distance, height, range)
+:::
+
+## Modeling
+
+::: fragment
+-   **Model:**
+    -   Logistic Regression\
+    -   XGBoost\
+    -   All models evaluated using 10-fold cross-validation
+:::
+
+## Model Performance
+
+```{r model-sum}
+#| include: TRUE
+#| echo: FALSE
+#| eval: TRUE
+#| warning: FALSE
+#| message: FALSE
+#| fig.width: 24
+#| fig.height: 16
+#| fig.cap: "plot"
+
+library(magick)
+model_sum <- image_read("../Visualizations/model_summary.png") |> 
+  image_ggplot(interpolate = TRUE)
+
+model_sum
+```
+
 ## Results
+
+```{r div-plot}
+#| include: TRUE
+#| echo: FALSE
+#| eval: TRUE
+#| warning: FALSE
+#| message: FALSE
+#| fig.width: 24
+#| fig.height: 16
+#| fig.cap: "plot"
+
+
+div_plot <- image_read("../Visualizations/diverging_plot.png") |> 
+  image_ggplot(interpolate = TRUE)
+div_plot
+```
+
+## 
+
+```{r vol-eff}
+#| include: TRUE
+#| echo: FALSE
+#| eval: TRUE
+#| warning: FALSE
+#| message: FALSE
+#| fig.width: 24
+#| fig.height: 16
+#| fig.cap: "plot"
+
+
+vol_eff <- image_read("../Visualizations/volume_vs_effectiveness_plot.png") |> 
+  image_ggplot(interpolate = TRUE)
+vol_eff
+```
+
 ## Discussion
+
+::: fragment
+-   **Limitations:**
+    -   Inaccuracy in SkillCorner data
+    -   Individual player skill and tactical tendencies not considered in the model
+    -   Our model does not account for pitch control
+:::
+
+::: fragment
+-   **Future Works:**
+    -   Incorporate pressing intensity calculations
+    -   Incorporate pitch control
+:::

@@ -1,8 +1,5 @@
 library(ggplot2)
 library(data.table)
-library(ggtext)
-library(ggforce)
-library(patchwork)
 
 
 
@@ -95,6 +92,7 @@ ggplot(data = pressing_data, aes(x = ball_carrier_x, y = ball_carrier_y)) +
 
 library(ggtext)
 library(ggforce)
+library(patchwork)
 
 Dfront <- 9
 Dback <- 3
@@ -202,10 +200,10 @@ pressing_team |>
 
 
 # Calibration plot: Actual vs Expected
-pressing_team |> # replace points with team logos
-  ggplot(aes(x = expected_turnovers, y = actual_turnovers)) +
+ggplot(aes(x = xP_xg, y = turnover_actual), data = pressing_data) +
   geom_point(alpha = 0.6) +
   geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "red") +
+  geom_smooth() +
   labs(x = "Expected Turnovers (xP)",
        y = "Actual Turnovers") +
   coord_fixed() +
