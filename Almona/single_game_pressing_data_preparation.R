@@ -404,7 +404,7 @@ setorder(pressing_sequences, sequence_id)
 # ball_carrier_direction: Direction of ball carrier in degrees at the moment the press begins.
 # ball_carrier_speed: Speed of ball carrier in m/s at the moment the press begins.
 # penalty_area: TRUE if the pressing sequence starts is in the penalty area. Else FALSE.
-
+# n_defenders_within_X: number of defenders within X = 10m, 15m, 20m, 25m at the moment the press begins
 
 
 
