@@ -41,12 +41,11 @@ The dataset contains 520 matches played in the 2023 season of Major League Socce
 
 ### Data processing
 
-Using the XY tracking data, we calculated the frame-by-frame distance, velocity, acceleration, and direction of both the players and the ball. These velocities were smoothed using a rolling function with a window size of 3 frames, and the accelerations with a window size of 5 frames. Afterwards, we removed the physically impossible values, such as velocity values larger than 11.9 m/s and acceleration values larger than 10 m/s^2^. 
-We also standardized the data such that the home team always attacks from left to right. **[...insert citation (CDF)...](http://example.com/)** (link embed works)
+Using the XY tracking data, we calculated the frame-by-frame distance, velocity, acceleration, and direction of both the players and the ball. These velocities were smoothed using a rolling function with a window size of 3 frames, and the accelerations with a window size of 5 frames. Afterwards, we removed the physically impossible values, such as velocity values larger than 11.9 m/s and acceleration values larger than 10 m/s^2^. We also standardized the data such that the home team always attacks from left to right. [Common Data Format (CDF): A Standardized Format for Match-Data in Football (Soccer)](https://arxiv.org/abs/2505.15820).
 
 ### Detecting pressing sequences with XY tracking data
 
-While StatsBomb-360 data and possibly other soccer tracking providers tag a pressure or pressing event, SkillCorner does not. To identify pressing events, we initially defined the “pressure zone” as any area within 6 meters of the ball carrier. However, according to **[Andrienko et al., 2017]**, this approach is too simplistic and does not account for the directions players are facing or moving towards. So, we chose to adopt the new approach they had proposed, where the “pressure zone” is elliptical (or oval) rather than circular. The distance limits are determined by the following formula:
+While StatsBomb-360 data and possibly other soccer tracking providers tag a pressure or pressing event, SkillCorner does not. To identify pressing events, we initially defined the “pressure zone” as any area within 6 meters of the ball carrier. However, according to [Visual Analysis of Pressure in Football](https://link.springer.com/article/10.1007/s10618-017-0513-2), this approach is too simplistic and does not account for the directions players are facing or moving towards. So, we chose to adopt the new approach they had proposed, where the “pressure zone” is elliptical (or oval) rather than circular. The distance limits are determined by the following formula:
 
 $$
 L = D_{back} + (D_{front} - D_{back})(z^3 + 0.3z) / 1.3 
@@ -69,7 +68,7 @@ $\theta$ = the angle between the vector from the ball carrier to the center of t
 #| fig-width: 14
 #| fig-height: 6
 #| fig.align: "center"
-#| fig-cap: "Figure [x]: The pressure zone. Left panel shows our initial circular pressure zone approach. Right panel shows the oval pressure zone method from Andrienko et al. (2017), which accounts for directional threat. The shaded blue area is where defending players would be considered as applying pressure to the ball carrier."
+#| fig-cap: "Figure [1]: The pressure zone. Left panel shows our initial circular pressure zone approach. Right panel shows the oval pressure zone method from Andrienko et al. (2017), which accounts for directional threat. The shaded blue area is where defending players would be considered as applying pressure to the ball carrier."
 
 
 library(ggtext)
@@ -133,7 +132,7 @@ circle_plot <- ggplot() +
 
 circle_plot + oval_plot + plot_layout(ncol = 2)
 ```
-Now that we have determined the pressure zone, the only other criterion we specified was that the approach velocity of the defender to the ball carrier must be greater than 1 m/s, as proposed by **[...cite Measuring the Eﬀectiveness…]**. This approach velocity threshold has been set in place to filter out “static” defending/pressing, as the defender must actively engage or move towards the ball carrier even if within the pressure zone. To reiterate, a defending player was classified as "pressing" if they were simultaneously within the oval pressure zone and approaching the ball carrier above the velocity threshold.
+Now that we have determined the pressure zone, the only other criterion we specified was that the approach velocity of the defender to the ball carrier must be greater than 1 m/s, as proposed by [Measuring the Effectiveness of Pressing in Soccer](https://people.cs.kuleuven.be/~pieter.robberechts/repo/merckx-mlsa21-pressing.pdf). This approach velocity threshold has been set in place to filter out “static” defending/pressing, as the defender must actively engage or move towards the ball carrier even if within the pressure zone. To reiterate, a defending player was classified as "pressing" if they were simultaneously within the oval pressure zone and approaching the ball carrier above the velocity threshold.
 
 ### Grouping pressing sequences
 
@@ -145,7 +144,7 @@ For each identified sequence, we extracted the sequence duration (in frames and 
 #| fig-width: 10
 #| fig-height: 4
 #| fig.align: "center"
-#| fig-cap: "Figure [x]: Heatmap showing the pressing patterns across the MLS 2023 season. The highest concentration of pressing occurs in the middle third of the field on both sides, where teams look to win the ball back in midfield areas to create quick attacking opportunities. Note: the home team is made to always attack left-to-right, the away team goes right-to-left."
+#| fig-cap: "Figure [2]: Heatmap showing the pressing patterns across the MLS 2023 season. The highest concentration of pressing occurs in the middle third of the field on both sides, where teams look to win the ball back in midfield areas to create quick attacking opportunities. Note: the home team is made to always attack left-to-right, the away team goes right-to-left."
 
 library(magick)
 
@@ -158,7 +157,7 @@ heatmap
 
 ### Measuring an effective press
 
-Since the goal of pressing is to regain ball possession or force a turnover by the attacking team, **[Lee et al., 2025]** highlighted that the impact of pressing should extend beyond immediate ball possession. This is mainly because pressing can force the attacking team into tight positions, which may increase the likelihood of an eventual turnover in the next few seconds or actions. They tested different success criteria for pressing, such as regaining possession after 7 seconds or after 4 actions, among others, but their analysis focused on regaining possession within 5 seconds of the pressing initiation. As a result, we decided to use the same method and assess the effectiveness of a pressing sequence based on whether the pressing team forced a turnover within 5 seconds of the start of the pressing sequence.
+Since the goal of pressing is to regain ball possession or force a turnover by the attacking team, [exPress:	Contextual	Valuation	of	Individual	Players	Within	Pressing	Situations	in Soccer](https://cdn.prod.website-files.com/5f1af76ed86d6771ad48324b/67c11b74f20ffc6e0d19bd7b_exPress_MITSloan_Final.pdf) highlighted that the impact of pressing should extend beyond immediate ball possession. This is mainly because pressing can force the attacking team into tight positions, which may increase the likelihood of an eventual turnover in the next few seconds or actions. They tested different success criteria for pressing, such as regaining possession after 7 seconds or after 4 actions, among others, but their analysis focused on regaining possession within 5 seconds of the pressing initiation. As a result, we decided to use the same method and assess the effectiveness of a pressing sequence based on whether the pressing team forced a turnover within 5 seconds of the start of the pressing sequence.
 
 ### Feature engineering
 
@@ -169,7 +168,7 @@ After data cleaning and processing, we had 31 features that were used for traini
 * Game Context: Score, game state (winning/losing/drawing), time remaining, etc.
 * Situational Factors: How the ball carrier gained possession (pass reception, interception, etc.), incoming pass characteristics (distance, height, range), etc.
 		
-These features were extracted from already tagged events provided by SkillCorner and from processing the XY tracking data. Further details on the features are provided in **Appendix [x]**.
+These features were extracted from already tagged events provided by SkillCorner and from processing the XY tracking data. Further details on the features are provided in the appendix.
 
 ## Analysis
 
@@ -178,13 +177,13 @@ To reiterate, 252,464 pressing sequences were identified across the 502 MLS matc
 
 ##### <u>Model Performance</u>
 
-The XGBoost model marginally outperformed the logistic regression model across all evaluation metrics, as seen in ***Table [x]***.
+The XGBoost model marginally outperformed the logistic regression model across all evaluation metrics, as seen in Table 1.
 
 ```{r model-summary}
 #| fig-width: 3.5
 #| fig-asp: 0.6
 #| fig.align: "center"
-#| fig-cap: "Table [x]"
+#| fig-cap: "Table [1]"
 
 library(magick)
 
@@ -197,7 +196,7 @@ model_sum
 
 ##### <u>Model Calibration</u>
 
-***Figure X*** shows the calibration plot of our XGBoost model, plotting predicted turnover probabilities against actual turnover rates. In a perfectly calibrated model, the blue line, which is our model, should align exactly with the red dotted diagonal line (perfect calibration).
+Figure 3 shows the calibration plot of our XGBoost model, plotting predicted turnover probabilities against actual turnover rates. In a perfectly calibrated model, the blue line, which is our model, should align exactly with the red dotted diagonal line (perfect calibration).
 
 Our model shows reasonably good calibration overall, with some deviation from perfect. This tells us that our XGBoost model is better at predicting when turnovers are unlikely to occur than when they are likely to occur.
 
@@ -205,7 +204,7 @@ Our model shows reasonably good calibration overall, with some deviation from pe
 #| fig-width: 10
 #| fig-asp: 0.6
 #| fig.align: "center"
-#| fig-cap: "Figure [x]: Calibration plot"
+#| fig-cap: "Figure [3]: Calibration plot"
 
 library(magick)
 
@@ -217,14 +216,14 @@ calib_plot
 
 ## Results
 
-##### <u>Team Pressing Performane</u>
-Significant variation existed in pressing effectiveness across MLS teams during the 2023 season (***Figure [X]***). Based on our model, the New York Red Bulls were the most effective pressing team, forcing approximately 7 more turnovers per game than our model predicted. 
+##### <u>Team Pressing Performance</u>
+Significant variation existed in pressing effectiveness across MLS teams during the 2023 season (Figure [4]). Based on our model, the New York Red Bulls were the most effective pressing team, forcing approximately 7 more turnovers per game than our model predicted. 
 
 ```{r diverge-plot}
 #| fig-width: 10
 #| fig-asp: 0.6
 #| fig.align: "center"
-#| fig-cap: "Figure [x]: Positive values (blue) indicate teams forcing more turnovers than predicted, while negative values (red) show underperformance. New York Red Bulls led MLS in pressing effectiveness, while Nashville SC struggled most relative to expectations."
+#| fig-cap: "Figure [4]: Positive values (blue) indicate teams forcing more turnovers than predicted, while negative values (red) show underperformance. New York Red Bulls led MLS in pressing effectiveness, while Nashville SC struggled most relative to expectations."
 
 library(magick)
 
@@ -236,13 +235,13 @@ diverg_plot
 
 
 ##### <u>Pressing Volume vs. Pressing Effectiveness</u>
-***Figure [X]*** shows pressing volume against pressing effectiveness by teams with four quadrants: high-volume/high-effectiveness (top right), low-volume/high-effectiveness (top left), high-volume/low-effectiveness (bottom right), and low-volume/low-effectiveness (bottom left). The New York Red Bulls represented the ideal combination, attempting the most presses per game while maintaining the highest effectiveness. 
+Figure 5 shows pressing volume against pressing effectiveness by teams with four quadrants: high-volume/high-effectiveness (top right), low-volume/high-effectiveness (top left), high-volume/low-effectiveness (bottom right), and low-volume/low-effectiveness (bottom left). The New York Red Bulls represented the ideal combination, attempting the most presses per game while maintaining the highest effectiveness. 
 
-```{r volume-effectiveness}
+```{r volume}
 #| fig-width: 10
 #| fig-asp: 0.6
 #| fig.align: "center"
-#| fig-cap: "Figure [x]: Teams in the upper-right quadrant combine high pressing frequency with high effectiveness"
+#| fig-cap: "Figure [5]: Teams in the upper-right quadrant combine high pressing frequency with high effectiveness"
 
 library(magick)
 
@@ -253,8 +252,9 @@ ve_plot
 ```
 
 ##### <u>When pressing vs. when being pressed</u>
-change from 3# in methods to underline and 4#
-*[enter text]*
+Figure 5 shows the relationship between pressing effectiveness and press resistance across all MLS teams during the 2023 season, measured as the difference between actual and expected turnovers per game (`xP_diff`). When teams are pressing, positive `xP_diff` values indicate forcing more turnovers than expected. When teams are being pressed, negative `xP_diff` values indicate better press resistance (fewer turnovers than expected). For visualization purposes, the y-axis values were inverted, transforming negative `xP_diff` values into positive "turnovers avoided," so that both axes follow the natural idea that higher values represent better performance.
+
+Teams in the upper-right quadrant are good at both: they force more turnovers than expected when pressing while avoiding more turnovers than expected when in possession. Based on our model, Seattle Sounders, Los Angeles FC, and Sporting Kansas City are the select few that do well at both. St. Louis City Soccer Club and New York Red Bulls show strong pressing abilities but are vulnerable when being pressed (lower-right). Portland Timbers seem to struggle the most at both.
 
 
 
@@ -263,108 +263,59 @@ change from 3# in methods to underline and 4#
 
 
 
-## Discussion
 
-Give your conclusions and summarize what you have learned with regards to your question of interest. Are there any limitations with the approaches you used? What do you think are the next steps to follow-up your project?
+### Discussion
 
-## Appendix: A quick tutorial
+##### <u>Feature Importance</u>
+Our analysis shows that pressing effectiveness in the MLS is predictable to a meaningful degree, with our XGBoost model achieving an AUC of 0.771. Variable importance analysis showed that `start_type` contributed approximately 70% of total model importance. This variable describes how the ball carrier got in possession of the ball, which could be an interception, reception, recovery, among others. When we looked at the actual turnover probabilities, pressing the ball carrier who got the ball from an interception led to a high turnover rate, approximately 74% of the time (Appendix [2]). This aligns with tactical principles employed at the highest levels of professional football. As Domenec Torrent, Pep Guardiola's former assistant coach at Manchester City, explained: "When we lose the ball it's very important for Pep to press high in five seconds. If you don't win it back within five seconds then make a foul and go back" (Torrent, cited in [Manchester Evening News](https://www.manchestereveningnews.co.uk/sport/football/football-news/man-city-rule-champions-torrent-14978819)). This immediate pressing approach, particularly effective when opponents have just gained possession through interceptions, reflects the vulnerability window that our data quantifies, demonstrating why `start_type` is an important predictor of successful pressure outcomes.
 
-**(Feel free to remove this section when you submit)**
+##### <u>Limitations</u>
+There was a 23% class imbalance in the response variable, forced turnover. This potentially leads to biased models that perform poorly on the minority class (in our case, turnover = “yes”) as they were structured for overall accuracy without using class weights.
+Our analysis uses only MLS data, limiting generalizability to other leagues with different tactical styles, player quality, or physical demands. Potential inaccuracies in SkillCorner tracking data may affect the precision of player positions and movements.
+Our model does not account for individual player skill levels, such as pace and pressing ability.
+Pitch control—how players influence space on the field—is not explicitly modeled, which may limit the understanding of spatial dominance during pressing events.
 
-This a Quarto document. 
-To learn more about Quarto see <https://quarto.org>.
-You can use the Render button to see what it looks like in HTML.
+##### <u>Future</u>
+Incorporating the pressing intensity calculation proposed by [Andrienko et al., 2017] and pitch control to account for spatial dominance.
 
-### Text formatting
-
-Text can be bolded with **double asterisks** and italicized with *single asterisks*. 
-Monospace text, such as for short code snippets, uses `backticks`.
-(Note these are different from quotation marks or apostrophes.) Links are
-written [like this](http://example.com/).
-
-Bulleted lists can be written with asterisks:
-
-* Each item starts on a new line with an asterisk.
-* Items should start on the beginning of the line.
-* Leave blank lines after the end of the list so the list does not continue.
-
-Mathematics can be written with LaTeX syntax using dollar signs. 
-For instance, using single dollar signs we can write inline math: $(-b \pm \sqrt{b^2 - 4ac})/2a$.
-
-To write math in "display style", i.e. displayed on its own line centered on the
-page, we use double dollar signs:
-$$
-x^2 + y^2 = 1
-$$
+## Acknowledgement
+Special thanks to Daniel Wicker (Charlotte FC), Dr. Ron Yurko, Quang Nguyen, the CMSACamp TAs, and Carnegie Mellon University.
 
 
-### Code blocks
+## Appendix
 
-Code blocks are evaluated sequentially when you hit Render. 
-As the code runs, `R` prints out which block is running, so naming blocks is useful if you want to know which one takes a long time. 
-After the block name, you can specify [chunk options](https://yihui.org/knitr/options/). 
-For example, `echo` controls whether the code is printed in the document. 
-By default, output is printed in the document in monospace:
 
-```{r, echo = FALSE}
-head(mtcars)
-```
 
-Chunk options can also be written inside the code block, which is helpful for really long options, as we'll see soon.
+> names(pressing_data)
+ [1] "ball_carrier_x"                  "ball_carrier_y"                 
+ [3] "forced_turnover_within_5s"       "n_pressing_defenders"           
+ [5] "max_passing_options"             "avg_approach_velocity"          
+ [7] "team_score"                      "opponent_team_score"            
+ [9] "goal_diff"                       "poss_third_start"               
+[11] "penalty_area"                    "game_state"                     
+[13] "start_type"                      "incoming_high_pass"             
+[15] "incoming_pass_distance_received" "incoming_pass_range_received"   
+[17] "dist_to_nearest_sideline"        "dist_to_nearest_endline"        
+[19] "dist_to_attacking_endline"       "dist_to_defending_endline"      
+[21] "n_defenders_within_10m"          "n_defenders_within_15m"         
+[23] "n_defenders_within_20m"          "n_defenders_within_25m"         
+[25] "is_defensive_half"               "is_corner_trap"                 
+[27] "dist_to_attacking_goal"          "ball_carrier_direction"         
+[29] "ball_carrier_speed"              "minutes_remaining_half"         
+[31] "minutes_remaining_game"    
 
-```{r}
-#| echo: false
-head(mtcars)
-```
 
-### Figures
 
-If a code block produces a plot or figure, this figure will automatically be inserted inline in the report. That is, it will be inserted exactly where the code block is.
+```{r volume-effectiveness}
+#| fig-width: 10
+#| fig-asp: 0.6
+#| fig.align: "center"
+#| fig-cap: "Appendix [2]: Teams in the upper-right quadrant combine high pressing frequency with high effectiveness"
 
-```{r}
-#| fig-width: 5
-#| fig-height: 3.5
-#| fig-cap: "This is a caption. It should explain what's in the figure and what's interesting about it. For instance: There is a negative, strong linear correlation between miles per gallon and horsepower for US cars in the 1970s."
+library(magick)
 
-library(tidyverse)
-mtcars |> 
-  ggplot(aes(x = mpg, y = hp)) +
-  geom_point() +
-  labs(x = "Miles per gallon",
-       y = "Horsepower")
-```
+turnover_by_start_type_plot <- image_read("README.png") |> 
+  image_ggplot(interpolate = TRUE)
 
-Notice the use of `fig-width` and `fig-height` to control the figure's size (in inches). 
-These control the sizes given to `R` when it generates the plot, so `R` proportionally adjusts the font sizes to be large enough.
-
-### Tables
-
-Use the `knitr::kable()` function to print tables as HTML:
-
-```{r}
-mtcars |> 
-  slice(1:5) |> 
-  knitr::kable()
-```
-
-We can summarize model results with a table. 
-For instance, suppose we fit a linear regression model:
-
-```{r}
-#| echo: true
-model1 <- lm(mpg ~ disp + hp + drat, data = mtcars)
-```
-
-It is *not* appropriate to simply print `summary(model1)` into the report. 
-If we want the reader to understand what models we have fit and what their results are, we should provide a nicely formatted table. 
-A simple option is to use the `tidy()` function from the `broom` package to get a data frame of the model fit, and simply report that as a table.
-
-```{r }
-#| results: "asis"
-#| tbl-cap: "Predicting fuel economy using vehicle features."
-library(broom)
-model1 |> 
-  tidy() |>
-  knitr::kable(digits = 2,
-               col.names = c("Term", "Estimate", "SE", "t", "p"))
+turnover_by_start_type_plot
 ```
