@@ -113,10 +113,11 @@ my_plot_ggplot
 
 ::: fragment
 - **Model:**  
-  - Logistic Regression  
-  - XGBoost  
-  - All models evaluated using 10-fold cross-validation
+  1. Logistic Regression  
+  2. XGBoost  
+     - Both models evaluated using 10-fold cross-validation
 :::
+
 
 ## Model Performance
 
@@ -192,3 +193,6 @@ my_plot_ggplot
     -   Incorporate pitch control
     
 :::
+
+
+## Appendix
