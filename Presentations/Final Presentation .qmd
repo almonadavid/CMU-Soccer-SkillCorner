@@ -47,6 +47,44 @@ Can the effectiveness of a press in soccer be predicted using factors such as sp
 
 ![](skillcorner.png)
 
+
+## Initial Pressure Zone
+
+-   Within **6 meters** of the ball carrier
+
+```{r cirle-plot}
+#| fig-width: 16
+#| fig-asp: 0.6
+#| fig-align: center
+
+library(ggtext)
+library(ggforce)
+library(patchwork)
+
+circle_plot <- ggplot() +
+  geom_circle(aes(x0 = 0, y0 = 0, r = 6), 
+              fill = "lightblue", alpha = 0.3, color = "blue", linewidth = 1) +
+  geom_point(aes(x = 0, y = 0), color = "red", size = 4) +
+  geom_richtext(aes(x = 0, y = 0.5), 
+                label = "Pressure target<br>(ball carrier)", 
+                color = "red", size = 8, fontface = "bold", 
+                fill = NA, label.color = NA, vjust = 0) +
+  geom_segment(aes(x = 0, y = 0, xend = 12, yend = 0), 
+               arrow = arrow(length = unit(0.3, "cm")), 
+               color = "darkgreen", linewidth = 1.2) +
+  geom_text(aes(x = 12, y = 1), label = "To Goal", hjust = 1, size = 8, color = "darkgreen") +
+  coord_equal() +
+  xlim(-10, 12) +
+  ylim(-7, 7) +
+  labs(x = "Distance (m)", y = "Distance (m)") +
+  theme_bw() +
+  theme(axis.title = element_text(size = 20))
+
+circle_plot
+```
+
+**Problem:** Doesn't account for direction and oversimplifies pressing
+
 ## The Pressure Zone
 
 Adopted from Andrienko et al. (2017).[^1]
@@ -97,6 +135,9 @@ oval_plot <- ggplot() +
   labs(x = "Distance (m)", y = "Distance (m)") +
   theme_bw() +
   theme(axis.title = element_text(size = 12))
+
+
+
 
 oval_plot
 ```
@@ -222,7 +263,7 @@ trate
 -   **No pitch control modeling** limits understanding of spatial dominance during pressing.
 
 ::: fragment
-<u>***Future Work:***</u>
+<u>**Future Work:**</u>
 
 -   Apply **class weights** to handle class imbalance.
 
@@ -296,40 +337,6 @@ kable(features,
       caption = "Some features used in the model")
 ```
 
-## A.2: Old Pressure Zone
-
--   Within **6 meters** of the ball carrier
-
-```{r cirle-plot}
-#| fig-width: 16
-#| fig-asp: 0.6
-#| fig-align: center
-
-
-
-circle_plot <- ggplot() +
-  geom_circle(aes(x0 = 0, y0 = 0, r = 6), 
-              fill = "lightblue", alpha = 0.3, color = "blue", linewidth = 1) +
-  geom_point(aes(x = 0, y = 0), color = "red", size = 4) +
-  geom_richtext(aes(x = 0, y = 0.5), 
-                label = "Pressure target<br>(ball carrier)", 
-                color = "red", size = 8, fontface = "bold", 
-                fill = NA, label.color = NA, vjust = 0) +
-  geom_segment(aes(x = 0, y = 0, xend = 12, yend = 0), 
-               arrow = arrow(length = unit(0.3, "cm")), 
-               color = "darkgreen", linewidth = 1.2) +
-  geom_text(aes(x = 12, y = 1), label = "To Goal", hjust = 1, size = 8, color = "darkgreen") +
-  coord_equal() +
-  xlim(-10, 12) +
-  ylim(-7, 7) +
-  labs(x = "Distance (m)", y = "Distance (m)") +
-  theme_bw() +
-  theme(axis.title = element_text(size = 20))
-
-circle_plot
-```
-
-**Problem:** Doesn't account for direction and oversimplifies pressing
 
 ## A.3: Oval Pressure Zone Formula
 
