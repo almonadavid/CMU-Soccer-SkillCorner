@@ -10,6 +10,7 @@ format:
     theme: cosmo
     html-math-method: katex
     self-contained: true
+    link-external-newwindow: true
 execute:
   echo: false
   warning: false
@@ -39,13 +40,13 @@ The dataset contains 520 matches played in the 2023 season of Major League Socce
 
 ## Methods
 
-### Data processing
+##### <u>Data processing</u>
 
-Using the XY tracking data, we calculated the frame-by-frame distance, velocity, acceleration, and direction of both the players and the ball. These velocities were smoothed using a rolling function with a window size of 3 frames, and the accelerations with a window size of 5 frames. Afterwards, we removed the physically impossible values, such as velocity values larger than 11.9 m/s and acceleration values larger than 10 m/s^2^. We also standardized the data such that the home team always attacks from left to right. [Common Data Format (CDF): A Standardized Format for Match-Data in Football (Soccer)](https://arxiv.org/abs/2505.15820).
+Using the XY tracking data, we calculated the frame-by-frame distance, velocity, acceleration, and direction of both the players and the ball. These velocities were smoothed using a rolling function with a window size of 3 frames, and the accelerations with a window size of 5 frames. Afterwards, we removed the physically impossible values, such as velocity values larger than 11.9 m/s and acceleration values larger than 10 m/s^2^. We also standardized the data such that the home team always attacks from left to right [(Anzer et al. (2025)](http://arxiv.org/abs/2505.15820).
 
-### Detecting pressing sequences with XY tracking data
+##### <u>Detecting pressing sequences with XY tracking data</u>
 
-While StatsBomb-360 data and possibly other soccer tracking providers tag a pressure or pressing event, SkillCorner does not. To identify pressing events, we initially defined the “pressure zone” as any area within 6 meters of the ball carrier. However, according to [Visual Analysis of Pressure in Football](https://link.springer.com/article/10.1007/s10618-017-0513-2), this approach is too simplistic and does not account for the directions players are facing or moving towards. So, we chose to adopt the new approach they had proposed, where the “pressure zone” is elliptical (or oval) rather than circular. The distance limits are determined by the following formula:
+While StatsBomb-360 data and possibly other soccer tracking providers tag a pressure or pressing event, SkillCorner does not. To identify pressing events, we initially defined the “pressure zone” as any area within 6 meters of the ball carrier. However, according to [Andrienko et al. (2017)](https://doi.org/10.1007/s10618-017-0513-2), this approach is too simplistic and does not account for the directions players are facing or moving towards. So, we chose to adopt the new approach they had proposed, where the “pressure zone” is elliptical (or oval) rather than circular. The distance limits are determined by the following formula:
 
 $$
 L = D_{back} + (D_{front} - D_{back})(z^3 + 0.3z) / 1.3 
@@ -63,12 +64,12 @@ $z$ = $(1 - cos \theta) / 2$
 $\theta$ = the angle between the vector from the ball carrier to the center of the attacking goal (which we determined as the threat direction) and the vector from the ball carrier to the presser
 
 
-[Andrienko et al., 2017] determined the distance thresholds $D_{back}$ and $D_{front}$ to be 3m and 9m, respectively, based on consultation with football (soccer) experts. He later performed an experiment to verify these parameters.
+Andrienko et al. (2017) determined the distance thresholds $D_{back}$ and $D_{front}$ to be 3m and 9m, respectively, based on consultation with football (soccer) experts. He later performed an experiment to verify these parameters.
 ```{r pressure-zone-plot}
 #| fig-width: 14
 #| fig-height: 6
 #| fig.align: "center"
-#| fig-cap: "Figure [1]: The pressure zone. Left panel shows our initial circular pressure zone approach. Right panel shows the oval pressure zone method from Andrienko et al. (2017), which accounts for directional threat. The shaded blue area is where defending players would be considered as applying pressure to the ball carrier."
+#| fig-cap: "Figure 1: The pressure zone. Left panel shows our initial circular pressure zone approach. Right panel shows the oval pressure zone method from Andrienko et al. (2017), which accounts for directional threat. The shaded blue area is where defending players would be considered as applying pressure to the ball carrier."
 
 
 library(ggtext)
@@ -112,8 +113,7 @@ oval_plot <- ggplot() +
 
 
 circle_plot <- ggplot() +
-  geom_circle(aes(x0 = 0, y0 = 0, r = 6), 
-              fill = "lightblue", alpha = 0.3, color = "blue", linewidth = 1) +
+  geom_circle(aes(x0 = 0, y0 = 0, r = 6), fill = "lightblue", alpha = 0.3, color = "blue", linewidth = 1) +
   geom_point(aes(x = 0, y = 0), color = "red", size = 4) +
   geom_richtext(aes(x = 0, y = 0.5), 
                 label = "Pressure target<br>(ball carrier)", 
@@ -132,9 +132,9 @@ circle_plot <- ggplot() +
 
 circle_plot + oval_plot + plot_layout(ncol = 2)
 ```
-Now that we have determined the pressure zone, the only other criterion we specified was that the approach velocity of the defender to the ball carrier must be greater than 1 m/s, as proposed by [Measuring the Effectiveness of Pressing in Soccer](https://people.cs.kuleuven.be/~pieter.robberechts/repo/merckx-mlsa21-pressing.pdf). This approach velocity threshold has been set in place to filter out “static” defending/pressing, as the defender must actively engage or move towards the ball carrier even if within the pressure zone. To reiterate, a defending player was classified as "pressing" if they were simultaneously within the oval pressure zone and approaching the ball carrier above the velocity threshold.
+Now that we have determined the pressure zone, the only other criterion we specified was that the approach velocity of the defender to the ball carrier must be greater than 1 m/s, as proposed by [Merckx et al ](https://people.cs.kuleuven.be/~pieter.robberechts/repo/merckx-mlsa21-pressing.pdf). This approach velocity threshold has been set in place to filter out “static” defending/pressing, as the defender must actively engage or move towards the ball carrier even if within the pressure zone. To reiterate, a defending player was classified as "pressing" if they were simultaneously within the oval pressure zone and approaching the ball carrier above the velocity threshold.
 
-### Grouping pressing sequences
+##### <u>Grouping pressing sequences</u>
 
 Individual pressing actions were grouped into pressing sequences based on how close they happened in time. We defined a pressing sequence as a continuous period where at least one defender from the same team maintained pressing behavior, allowing for brief interruptions of up to 1.5 seconds (15 frames). In other words, if a pressing defender leaves the pressure zone or is no longer actively pressing, but another defender exhibits pressing behavior within 1.5 seconds, the sequence remains active. However, if the next press begins more than 1.5 seconds after the previous press, a new pressing sequence begins.
 
@@ -144,7 +144,7 @@ For each identified sequence, we extracted the sequence duration (in frames and 
 #| fig-width: 10
 #| fig-height: 4
 #| fig.align: "center"
-#| fig-cap: "Figure [2]: Heatmap showing the pressing patterns across the MLS 2023 season. The highest concentration of pressing occurs in the middle third of the field on both sides, where teams look to win the ball back in midfield areas to create quick attacking opportunities. Note: the home team is made to always attack left-to-right, the away team goes right-to-left."
+#| fig-cap: "Figure 2: Heatmap showing the pressing patterns across the MLS 2023 season. The highest concentration of pressing occurs in the middle third of the field on both sides, where teams look to win the ball back in midfield areas to create quick attacking opportunities. Note: the home team is made to always attack left-to-right, the away team goes right-to-left."
 
 library(magick)
 
@@ -155,11 +155,11 @@ heatmap
 ```
 
 
-### Measuring an effective press
+##### <u>Measuring an effective press</u>
 
-Since the goal of pressing is to regain ball possession or force a turnover by the attacking team, [exPress:	Contextual	Valuation	of	Individual	Players	Within	Pressing	Situations	in Soccer](https://cdn.prod.website-files.com/5f1af76ed86d6771ad48324b/67c11b74f20ffc6e0d19bd7b_exPress_MITSloan_Final.pdf) highlighted that the impact of pressing should extend beyond immediate ball possession. This is mainly because pressing can force the attacking team into tight positions, which may increase the likelihood of an eventual turnover in the next few seconds or actions. They tested different success criteria for pressing, such as regaining possession after 7 seconds or after 4 actions, among others, but their analysis focused on regaining possession within 5 seconds of the pressing initiation. As a result, we decided to use the same method and assess the effectiveness of a pressing sequence based on whether the pressing team forced a turnover within 5 seconds of the start of the pressing sequence.
+Since the goal of pressing is to regain ball possession or force a turnover by the attacking team, [Lee et al. (2025)](https://cdn.prod.website-files.com/5f1af76ed86d6771ad48324b/67c11b74f20ffc6e0d19bd7b_exPress_MITSloan_Final.pdf) highlighted that the impact of pressing should extend beyond immediate ball possession. This is mainly because pressing can force the attacking team into tight positions, which may increase the likelihood of an eventual turnover in the next few seconds or actions. They tested different success criteria for pressing, such as regaining possession after 7 seconds or after 4 actions, among others, but their analysis focused on regaining possession within 5 seconds of the pressing initiation. As a result, we decided to use the same method and assess the effectiveness of a pressing sequence based on whether the pressing team forced a turnover within 5 seconds of the start of the pressing sequence.
 
-### Feature engineering
+##### <u>Feature engineering</u>
 
 After data cleaning and processing, we had 31 features that were used for training our model. These included:
 
@@ -177,13 +177,13 @@ To reiterate, 252,464 pressing sequences were identified across the 502 MLS matc
 
 ##### <u>Model Performance</u>
 
-The XGBoost model marginally outperformed the logistic regression model across all evaluation metrics, as seen in Table 1.
+The XGBoost model marginally outperformed the logistic regression model across all evaluation metrics, as seen in Table 1 below.
 
 ```{r model-summary}
 #| fig-width: 3.5
 #| fig-asp: 0.6
 #| fig.align: "center"
-#| fig-cap: "Table [1]"
+#| fig-cap: "Table 1"
 
 library(magick)
 
@@ -196,7 +196,7 @@ model_sum
 
 ##### <u>Model Calibration</u>
 
-Figure 3 shows the calibration plot of our XGBoost model, plotting predicted turnover probabilities against actual turnover rates. In a perfectly calibrated model, the blue line, which is our model, should align exactly with the red dotted diagonal line (perfect calibration).
+Figure 3 below shows the calibration plot of our XGBoost model, plotting predicted turnover probabilities against actual turnover rates. In a perfectly calibrated model, the blue line, which is our model, should align exactly with the red dotted diagonal line (perfect calibration).
 
 Our model shows reasonably good calibration overall, with some deviation from perfect. This tells us that our XGBoost model is better at predicting when turnovers are unlikely to occur than when they are likely to occur.
 
@@ -204,7 +204,7 @@ Our model shows reasonably good calibration overall, with some deviation from pe
 #| fig-width: 10
 #| fig-asp: 0.6
 #| fig.align: "center"
-#| fig-cap: "Figure [3]: Calibration plot"
+#| fig-cap: "Figure 3: Calibration plot"
 
 library(magick)
 
@@ -217,13 +217,13 @@ calib_plot
 ## Results
 
 ##### <u>Team Pressing Performance</u>
-Significant variation existed in pressing effectiveness across MLS teams during the 2023 season (Figure [4]). Based on our model, the New York Red Bulls were the most effective pressing team, forcing approximately 7 more turnovers per game than our model predicted. 
+Significant variation existed in pressing effectiveness across MLS teams during the 2023 season (*Figure 4*). Based on our model, the New York Red Bulls were the most effective pressing team, forcing approximately 7 more turnovers per game than our model predicted. 
 
 ```{r diverge-plot}
 #| fig-width: 10
 #| fig-asp: 0.6
 #| fig.align: "center"
-#| fig-cap: "Figure [4]: Positive values (blue) indicate teams forcing more turnovers than predicted, while negative values (red) show underperformance. New York Red Bulls led MLS in pressing effectiveness, while Nashville SC struggled most relative to expectations."
+#| fig-cap: "Figure 4: Positive values (blue) indicate teams forcing more turnovers than predicted, while negative values (red) show underperformance. New York Red Bulls led MLS in pressing effectiveness, while Nashville SC struggled most relative to expectations."
 
 library(magick)
 
@@ -235,13 +235,13 @@ diverg_plot
 
 
 ##### <u>Pressing Volume vs. Pressing Effectiveness</u>
-Figure 5 shows pressing volume against pressing effectiveness by teams with four quadrants: high-volume/high-effectiveness (top right), low-volume/high-effectiveness (top left), high-volume/low-effectiveness (bottom right), and low-volume/low-effectiveness (bottom left). The New York Red Bulls represented the ideal combination, attempting the most presses per game while maintaining the highest effectiveness. 
+Figure 5 below shows pressing volume against pressing effectiveness by teams with four quadrants: high-volume/high-effectiveness (top right), low-volume/high-effectiveness (top left), high-volume/low-effectiveness (bottom right), and low-volume/low-effectiveness (bottom left). The New York Red Bulls represented the ideal combination, attempting the most presses per game while maintaining the highest effectiveness. 
 
 ```{r volume}
 #| fig-width: 10
 #| fig-asp: 0.6
 #| fig.align: "center"
-#| fig-cap: "Figure [5]: Teams in the upper-right quadrant combine high pressing frequency with high effectiveness"
+#| fig-cap: "Figure 5: Teams in the upper-right quadrant combine high pressing frequency with high effectiveness"
 
 library(magick)
 
@@ -252,70 +252,89 @@ ve_plot
 ```
 
 ##### <u>When pressing vs. when being pressed</u>
-Figure 5 shows the relationship between pressing effectiveness and press resistance across all MLS teams during the 2023 season, measured as the difference between actual and expected turnovers per game (`xP_diff`). When teams are pressing, positive `xP_diff` values indicate forcing more turnovers than expected. When teams are being pressed, negative `xP_diff` values indicate better press resistance (fewer turnovers than expected). For visualization purposes, the y-axis values were inverted, transforming negative `xP_diff` values into positive "turnovers avoided," so that both axes follow the natural idea that higher values represent better performance.
+*Figure 6* below shows the relationship between pressing effectiveness and press resistance across all MLS teams during the 2023 season, measured as the difference between actual and expected turnovers per game (`xP_diff`). When teams are pressing, positive `xP_diff` values indicate forcing more turnovers than expected. When teams are being pressed, negative `xP_diff` values indicate better press resistance (fewer turnovers than expected). For visualization purposes, the y-axis values were inverted, transforming negative `xP_diff` values into positive "turnovers avoided," so that both axes follow the natural idea that higher values represent better performance.
 
 Teams in the upper-right quadrant are good at both: they force more turnovers than expected when pressing while avoiding more turnovers than expected when in possession. Based on our model, Seattle Sounders, Los Angeles FC, and Sporting Kansas City are the select few that do well at both. St. Louis City Soccer Club and New York Red Bulls show strong pressing abilities but are vulnerable when being pressed (lower-right). Portland Timbers seem to struggle the most at both.
 
-
-
-
-
-
-
-
-
-### Discussion
-
-##### <u>Feature Importance</u>
-Our analysis shows that pressing effectiveness in the MLS is predictable to a meaningful degree, with our XGBoost model achieving an AUC of 0.771. Variable importance analysis showed that `start_type` contributed approximately 70% of total model importance. This variable describes how the ball carrier got in possession of the ball, which could be an interception, reception, recovery, among others. When we looked at the actual turnover probabilities, pressing the ball carrier who got the ball from an interception led to a high turnover rate, approximately 74% of the time (Appendix [2]). This aligns with tactical principles employed at the highest levels of professional football. As Domenec Torrent, Pep Guardiola's former assistant coach at Manchester City, explained: "When we lose the ball it's very important for Pep to press high in five seconds. If you don't win it back within five seconds then make a foul and go back" (Torrent, cited in [Manchester Evening News](https://www.manchestereveningnews.co.uk/sport/football/football-news/man-city-rule-champions-torrent-14978819)). This immediate pressing approach, particularly effective when opponents have just gained possession through interceptions, reflects the vulnerability window that our data quantifies, demonstrating why `start_type` is an important predictor of successful pressure outcomes.
-
-##### <u>Limitations</u>
-There was a 23% class imbalance in the response variable, forced turnover. This potentially leads to biased models that perform poorly on the minority class (in our case, turnover = “yes”) as they were structured for overall accuracy without using class weights.
-Our analysis uses only MLS data, limiting generalizability to other leagues with different tactical styles, player quality, or physical demands. Potential inaccuracies in SkillCorner tracking data may affect the precision of player positions and movements.
-Our model does not account for individual player skill levels, such as pace and pressing ability.
-Pitch control—how players influence space on the field—is not explicitly modeled, which may limit the understanding of spatial dominance during pressing events.
-
-##### <u>Future</u>
-Incorporating the pressing intensity calculation proposed by [Andrienko et al., 2017] and pitch control to account for spatial dominance.
-
-## Acknowledgement
-Special thanks to Daniel Wicker (Charlotte FC), Dr. Ron Yurko, Quang Nguyen, the CMSACamp TAs, and Carnegie Mellon University.
-
-
-## Appendix
-
-
-
-> names(pressing_data)
- [1] "ball_carrier_x"                  "ball_carrier_y"                 
- [3] "forced_turnover_within_5s"       "n_pressing_defenders"           
- [5] "max_passing_options"             "avg_approach_velocity"          
- [7] "team_score"                      "opponent_team_score"            
- [9] "goal_diff"                       "poss_third_start"               
-[11] "penalty_area"                    "game_state"                     
-[13] "start_type"                      "incoming_high_pass"             
-[15] "incoming_pass_distance_received" "incoming_pass_range_received"   
-[17] "dist_to_nearest_sideline"        "dist_to_nearest_endline"        
-[19] "dist_to_attacking_endline"       "dist_to_defending_endline"      
-[21] "n_defenders_within_10m"          "n_defenders_within_15m"         
-[23] "n_defenders_within_20m"          "n_defenders_within_25m"         
-[25] "is_defensive_half"               "is_corner_trap"                 
-[27] "dist_to_attacking_goal"          "ball_carrier_direction"         
-[29] "ball_carrier_speed"              "minutes_remaining_half"         
-[31] "minutes_remaining_game"    
-
-
-
-```{r volume-effectiveness}
+```{r pressing-pressed}
 #| fig-width: 10
 #| fig-asp: 0.6
 #| fig.align: "center"
-#| fig-cap: "Appendix [2]: Teams in the upper-right quadrant combine high pressing frequency with high effectiveness"
+#| fig-cap: "Figure 6: Pressing effectiveness versus press resistance for MLS teams during the 2023 season."
+
+
+pp_plot <- image_read("Visualizations/pressing_vs_pressed_plot.png") |> 
+  image_ggplot(interpolate = TRUE)
+
+pp_plot
+```
+
+
+## Discussion
+
+##### <u>Feature Importance</u>
+Our analysis shows that pressing effectiveness in the MLS is predictable to a meaningful degree, with our XGBoost model achieving an AUC of 0.771. Variable importance analysis showed that `start_type` contributed approximately 70% of total model importance. This variable describes how the ball carrier got in possession of the ball, which could be an interception, reception, recovery, among others. When we looked at the actual turnover probabilities, pressing the ball carrier who got the ball from an interception led to a high turnover rate, approximately 74% of the time (*Table 2*). This aligns with tactical principles employed at the highest levels of professional football. As Domenec Torrent, Pep Guardiola's former assistant coach at Manchester City, explained: "When we lose the ball it's very important for Pep to press high in five seconds. If you don't win it back within five seconds then make a foul and go back" (Torrent, cited in [Manchester Evening News](https://www.manchestereveningnews.co.uk/sport/football/football-news/man-city-rule-champions-torrent-14978819)). This immediate pressing approach, particularly effective when opponents have just gained possession through interceptions, reflects the vulnerability window that our data quantifies, demonstrating why `start_type` is an important predictor of successful pressure outcomes.
+
+
+```{r turnover-rate}
+#| fig-width: 4
+#| fig-asp: 0.6
+#| fig.align: "center"
+#| fig-cap: "Table 2: Teams in the upper-right quadrant combine high pressing frequency with high effectiveness"
 
 library(magick)
 
-turnover_by_start_type_plot <- image_read("README.png") |> 
+turnover_by_start_type_plot <- image_read("Visualizations/turnover_start_type.png") |> 
   image_ggplot(interpolate = TRUE)
 
 turnover_by_start_type_plot
 ```
+
+##### <u>Limitations</u>
+
+- There was a 23% class imbalance in the response variable, forced turnover. This potentially leads to biased models that perform poorly on the minority class (in our case, turnover = “yes”) as the models are structured for overall accuracy.
+
+- Our analysis uses only MLS data, limiting generalizability to other leagues with different tactical styles, player quality, or physical demands. 
+
+- Tracking data inaccuracies may affect player position and movement precision.
+
+- Our model does not account for individual player skill levels, such as pace and pressing ability.
+
+- No pitch control modeling limits understanding of spatial dominance during pressing.
+
+##### <u>Future</u>
+-   Apply class weights to handle class imbalance.
+
+-   Extend analysis to multiple leagues.
+
+-   Add pressing intensity calculation.
+
+-   Add pitch control metrics to account for spatial dominance.
+
+## Acknowledgement
+Special thanks to Daniel Wicker (Charlotte FC), Dr. Ron Yurko, Quang Nguyen, the CMSACamp TAs, and Carnegie Mellon University.
+
+## Citations
+Andrienko, G., Andrienko, N., Budziak, G., Dykes, J., Fuchs, G., von Landesberger, T., & Weber, H. (2017). Visual analysis of pressure in football. Data Mining and Knowledge Discovery, 31(6), 1793–1839. [https://doi.org/10.1007/s10618-017-0513-2](https://doi.org/10.1007/s10618-017-0513-2)
+
+Anzer, G., Arnsmeyer, K., Bauer, P., Bekkers, J., Brefeld, U., Davis, J., Evans, N., Kempe, M., Robertson, S. J., Smith, J. W., & Van Haaren, J. (2025). Common Data Format (CDF): A Standardized Format for Match-Data in Football (Soccer). [http://arxiv.org/abs/2505.15820](http://arxiv.org/abs/2505.15820)
+
+Bauer, P., & Anzer, G. (2021). Data-driven detection of counterpressing in professional football: A supervised machine learning task based on synchronized positional and event data with expert-based feature extraction. Data Mining and Knowledge Discovery, 35. [https://doi.org/10.1007/s10618-021-00763-7](https://doi.org/10.1007/s10618-021-00763-7)
+
+Lee, M., Jo, G., Hong, M., Bauer, P., & Ko, S.-K. (2025). exPress: Contextual Valuation of Individual Players Within Pressing Situations in Soccer.
+
+Merckx, S., Robberechts, P., Euvrard, Y., & Davis, J. (n.d.). Measuring the Effectiveness of Pressing in Soccer.
+Robberechts, P. (n.d.). Valuing the Art of Pressing.
+
+
+## Contact Information
+
+David Almona, Centre College, [almonadavid@gmail.com](almonadavid@gmail.com)
+
+Natalie Rayce, Carnegie Mellon University, [nrayce@andrew.cmu.edu](nrayce@andrew.cmu.edu)
+
+
+## Code Availability
+
+Code available on [GitHub](https://github.com/almonadavid/CMU-Soccer-SkillCorner.git)
+
