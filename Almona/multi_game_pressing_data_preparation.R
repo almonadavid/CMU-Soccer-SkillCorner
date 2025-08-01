@@ -1,10 +1,7 @@
 library(tidyverse)
 library(data.table)
 library(jsonlite)
-library(sf) 
-library(gganimate)
 library(purrr)
-library(deldir)
 library(tictoc)
 
 

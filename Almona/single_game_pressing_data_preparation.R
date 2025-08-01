@@ -1,10 +1,8 @@
 library(tidyverse)
 library(data.table) # Handles large data faster than dplyr
 library(jsonlite)
-library(sf) 
-library(gganimate)
 library(purrr)
-library(deldir)
+
 
 
 
