@@ -12,16 +12,15 @@ This project analyzes MLS matches to predict forced turnovers from pressing sequ
 ## Project Structure
 ```
 ├── Almona/
-│   ├── pressing_functions.R          # Pressing detection functions
+│   ├── pressing_functions.R
 │   ├── single_game_pressing_data_preparation.R
 │   ├── multi_game_pressing_data_preparation.R
-│   └── pressing_modeling.R           # ML models
-├── data/
-│   └── skillcorner/                  # Data (not included)
-│       ├── tracking/                 # JSON tracking files
-│       ├── match_data/               # JSON match information
-│       └── dynamic_events/           # CSV event data
-├── results/                          # Output directory for analysis
+│   └── pressing_modeling.R
+├── data/   # Data (not included)
+│   └── skillcorner/
+│       ├── tracking/
+│       ├── match_data/
+│       └── dynamic_events/
 ├── Presentations/
 │   └── Final Presentation.qmd
 └── Capstone_Report.qmd
