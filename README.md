@@ -15,7 +15,7 @@ This project analyzes MLS matches to predict forced turnovers from pressing sequ
 │   ├── pressing_functions.R          # Pressing detection functions
 │   ├── single_game_pressing_data_preparation.R
 │   ├── multi_game_pressing_data_preparation.R
-│   └── pressing_modeling.R           # ML models (Logistic & XGBoost)
+│   └── pressing_modeling.R           # ML models
 ├── data/
 │   └── skillcorner/                  # Data (not included)
 │       ├── tracking/                 # JSON tracking files
