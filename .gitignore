@@ -19,3 +19,4 @@ logs/
 animation.R
 tidymodels_modeling.R
 
+"defenders/*.csv" 
