@@ -150,7 +150,7 @@ calculate_approach_velocity <- function(tracking_data, ball_carrier_df,
 }
 
 #### Pressing Detection with Oval Pressure Zone ####
-detect_pressing_action <- function(tracking_data, ball_carrier_df,
+detect_pressing_action <- function(tracking_data, ball_carrier_df, home_team_id,
                                    frame_rate = 10,
                                    approach_vel_threshold = 1.0, # we want active pressing not just standing still in the pressure zone
                                    approach_smooth_window = 3) {
@@ -186,7 +186,7 @@ detect_pressing_action <- function(tracking_data, ball_carrier_df,
   # Dot product for angle calculation
   enhanced_data[, dot_product := threat_vector_x * target_to_presser_x + threat_vector_y * target_to_presser_y]
   
-  # Calculate angle (in radians, then convert if needed)
+  # Calculate angle (in radians)
   enhanced_data[, angle_theta := acos(pmax(-1, pmin(1, dot_product / (threat_magnitude * presser_magnitude))))]
   
   # Calculate z for oval formula

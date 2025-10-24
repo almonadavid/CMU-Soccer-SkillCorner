@@ -10,7 +10,7 @@ library(tictoc)
 ## Run pressing_functions.R before proceeding 
 source("Almona/pressing_functions.R")
 
-## Note: the shell of this multi-game loop was made possible with the help of an AI chatbot
+## Note: the shell of this multi-game loop was written with the help of an AI chatbot using single_game_pressing_data_preparation.R
 
 
 # Configuration
@@ -176,7 +176,7 @@ process_single_game <- function(game_id, paths) {
   
   
   #### Press Detection ####
-  pressing_results <- detect_pressing_action(tracking_data, ball_carrier_df)
+  pressing_results <- detect_pressing_action(tracking_data, ball_carrier_df, home_team_id)
   pressing_sequences <- identify_pressing_sequences(pressing_results)
   
   
@@ -300,28 +300,10 @@ process_single_game <- function(game_id, paths) {
   Y_MAX <- 34     # Top sideline
   
   pressing_sequences[, `:=`(
-    # Distance to nearest sideline
     dist_to_nearest_sideline = pmin(abs(ball_carrier_y - Y_MIN), abs(ball_carrier_y - Y_MAX)),
-    
-    # Distance to nearest endline
-    dist_to_nearest_endline = pmin(
-      abs(ball_carrier_x - X_MIN), 
-      abs(ball_carrier_x - X_MAX)
-    ),
-    
-    # Distance to attacking endline
-    dist_to_attacking_endline = ifelse(
-      possession_team == home_team_id,
-      abs(ball_carrier_x - X_MAX),
-      abs(ball_carrier_x - X_MIN) 
-    ),
-    
-    # Distance to defending endline
-    dist_to_defending_endline = ifelse(
-      possession_team == home_team_id, 
-      abs(ball_carrier_x - X_MIN),
-      abs(ball_carrier_x - X_MAX)
-    )
+    dist_to_nearest_endline = pmin(abs(ball_carrier_x - X_MIN), abs(ball_carrier_x - X_MAX)),
+    dist_to_attacking_endline = ifelse(possession_team == home_team_id, abs(ball_carrier_x - X_MAX), abs(ball_carrier_x - X_MIN)),
+    dist_to_defending_endline = ifelse(possession_team == home_team_id, abs(ball_carrier_x - X_MIN), abs(ball_carrier_x - X_MAX))
   )]
   
   #### Calculate number of defenders within various radii ####
@@ -473,7 +455,7 @@ save_game_results <- function(result, config) {
   # Save CSV
   if (config$save_individual_csv) {
     csv_path <- paste0(config$output_path, "game_", game_id, "_pressing_sequences.csv")
-    (result$pressing_sequences, csv_path)
+    fwrite(result$pressing_sequences, csv_path)
   }
   
   return(save_path)

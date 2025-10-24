@@ -5,6 +5,8 @@ author:
     affiliation: Carnegie Mellon University
   - name: David Almona
     affiliation: Centre College
+  - name: Daniel Wicker
+    affiliation: Charlotte FC, External Advisor
 editor: visual
 format:
   revealjs:
@@ -15,6 +17,13 @@ format:
     smaller: true
 ---
 
+
+# Key Terms
+
+**Pressing:** a defensive tactic where players apply coordinated pressure on the opponent with the ball to force mistakes, win back possession, and quickly transition to attack <br> 
+<br>
+**Forced Turnover:** when a player loses possession due to opponent pressure, resulting in the opposing team gaining control. This includes misplaced passes, interceptions, successful tackles, or losing control under pressure - all direct results of effective defensive pressure
+
 ## Turning Defense to Attack
 
 ::: video
@@ -23,19 +32,14 @@ format:
 
 Manchester City wins back possession seconds after losing it through pressing.
 
-# Main Question
+# Data
 
-Can the effectiveness of a press in soccer be predicted using factors such as spatial context, pressing dynamics, game context and situational factors?
+-   **Source:** SkillCorner
 
-# Key Terms
+-   **Dataset:** 
 
-**Pressing:** a defensive tactic where players apply coordinated pressure on the opponent with the ball to force mistakes, win back possession, and quickly transition to attack
-
-**Forced Turnover:** when a player loses possession due to opponent pressure, resulting in the opposing team gaining control. This includes misplaced passes, interceptions, successful tackles, or losing control under pressure - all direct results of effective defensive pressure
-
-## Data
-
--   **Dataset:** 520 matches in the MLS 2023 season
+    - 520 matches in the MLS 2023 season
+    - 18 unusable matches with no event data
 
 -   **Three data types:**
 
@@ -43,10 +47,15 @@ Can the effectiveness of a press in soccer be predicted using factors such as sp
     -   **Event data:** player actions (passes, shots, tackles) with timestamps and coordinates
     -   **Tracking data:** real-time positions of all players and ball at 10 Hz
 
--   **Source:**
+# Steps
+<br>
+1.  Identify when a press occurs using player tracking data
 
-![](skillcorner.png)
+<br>
+2.  Define the criteria for an effective press
 
+<br>
+3.  Modeling & Results
 
 ## Initial Pressure Zone
 
@@ -136,10 +145,32 @@ oval_plot <- ggplot() +
   theme_bw() +
   theme(axis.title = element_text(size = 12))
 
-
-
-
 oval_plot
+```
+
+## Oval Pressure Zone Formula
+
+$$
+L = D_{back} + (D_{front} - D_{back})(z^3 + 0.3z) / 1.3 
+$$ where:
+
+- $L$ = the maximum distance limit for effective pressure at angle $\theta$
+
+- $D_{back}$ = the max. distance limit when the presser is positioned behind the ball carrier
+
+- $D_{front}$ = the max. distance limit when the presser is positioned in front of the ball carrier
+
+- $z$ = $(1 - cos \theta) / 2$
+
+- $\theta$ = the angle between the vector from the ball carrier to the center of the attacking goal (our threat direction) and the vector from the ball carrier to the presser
+
+Andrienko et al. (2017) determined the distance thresholds $D_{back}$ and $D_{front}$ to be **3m** and **9m**, respectively, based on consultation with football (soccer) experts. He later performed an experiment to verify these parameters.
+
+## The pressure zone angle
+```{r pressure-angle}
+#| out-width: "100%"
+
+knitr::include_graphics("pressure_angle.png")
 ```
 
 # Pressing Criteria
@@ -151,17 +182,32 @@ A defending player was classified as "pressing" if they were simultaneously
 
 Pressing actions were grouped into sequences if at least one defender continued pressing within 1.5 seconds.
 
-## Measuring an Effective Press
+**252,464 pressing sequences** were identified across the 502 MLS matches.
 
--   Since the goal of pressing is to regain ball possession from the attacking team, the impact of pressing should extend beyond immediate ball re-possession.
+# Steps
+<br>
+~~1.  Identify when a press occurs using player tracking data~~
 
--   Pressing can force the attacking team into tight positions, which may increase the likelihood of an eventual turnover in the next few seconds or actions.
+<br>
+2.  Define the criteria for an effective press
 
+<br>
+3.  Modeling & Results
+
+
+## But What Makes An Effective Press?
 ::: fragment
-**Response Variable**: A forced turnover within 5s of pressing initiation.
+-   Since the goal of pressing is to regain ball possession from the attacking team, the impact of pressing should extend beyond immediate ball re-possession.
+:::
+::: fragment
+-   Pressing can force the attacking team into tight positions, which may increase the likelihood of an eventual turnover in the next few seconds or actions.
+:::
+::: fragment
+A press is effective when there's **a forced turnover within 5s of pressing initiation.**<br>
 :::
 
 ::: fragment
+<br>
 **Features**: 31 features were extracted and used for training our model:
 
 -   **Spatial Context**: Ball carrier position, distance to boundaries, field third, etc.
@@ -173,110 +219,165 @@ Pressing actions were grouped into sequences if at least one defender continued 
 -   **Situational Factors**: How the ball carrier gained possession (pass reception, interception, etc.), incoming pass characteristics (distance, height, range), etc.
 :::
 
+# Steps
+<br>
+~~1.  Identify when a press occurs using player tracking data~~
+
+<br>
+~~2.  Define the criteria for an effective press~~
+
+<br>
+3.  Modeling & Results
+
 ## Modeling
 
-252,464 pressing sequences were identified across the 502 MLS matches.
-
-**Two Models:**
-
--   Logistic Regression
-
--   XGBoost
-
-10-fold cross-validation with match-based splits to prevent data leakage.
+We compared five models all evaluated using 10-fold cross-validation with match-based splits to prevent data leakage. <br><br>
+Hyperparameter tuning was done on a 50% stratified sample of the data to find the best XGBoost parameters.
 
 ::: fragment
 ```{r model-summary}
-#| fig.align: "center"
-#| fig-width: 6
-#| fig-asp: 0.6
+#| out-width: "100%"
 
-library(magick)
-
-model_sum <- image_read("model_summary.png") |> 
-  image_ggplot(interpolate = TRUE)
-
-model_sum
+knitr::include_graphics("model_summary.png")
 ```
+<p style="font-size: 0.7em; margin-top: 10px; text-align: left;">*Calibration plots are available in the appendix.</p>
 :::
 
-## XGBoost predicts low-risk well
+## Is XGBoost really better than Logistic?
+The performance difference between XGBoost and logistic regression appears negligible.
 
-```{r calibration-plot}
-#| fig-width: 14
-#| fig-asp: 1.2
-#| fig.align: "center"
-#| fig-cap: "Calibration plot: The XGBoost model (blue line) moves away from perfect calibration with higher turnover probabilities."
+```{r test-model-summary}
+#| fig-width: 20
+#| fig-align: center
 
-calib_plot <- image_read("calibration_plot.png") |> 
-  image_ggplot(interpolate = TRUE)
-
-calib_plot
+knitr::include_graphics("test_model_summary.png")
 ```
 
-## Pressing Volume vs. Effectiveness
+::: fragment
+$$
+|z| = \frac{|\bar{x}_{xgboost} - \bar{x}_{logit}|}{\sqrt{SE^2_{xgboost} + SE^2_{logit}}}
+$$
 
-```{r volume-effectiveness}
-#| fig-width: 24
-#| fig-height: 14
-#| fig.align: "center"
-#| fig-cap: "Teams in the upper-right quadrant combine high pressing frequency with high effectiveness"
+$$
+= \frac{|0.434 - 0.445|}{\sqrt{0.00263^2 + 0.00255^2}}
+$$
 
-ve_plot <- image_read("volume_vs_effectiveness_plot.png") |> 
-  image_ggplot(interpolate = TRUE)
+$$
+= \frac{0.011}{0.00366}
+$$
 
-ve_plot
+$$
+= 3.02 \text{ standard errors apart}
+$$
+:::
+
+## New York Red Bulls pressed best
+
+```{r div-plot}
+#| out-width: "100%"
+
+knitr::include_graphics("diverging_plot.png")
 ```
 
-## Pressing After Interceptions Forces Turnovers 74% of the Time
+## Comparing our model to PPDA
+**What's Passes Per Defensive Action (PPDA)?:** the number of opposition passes allowed outside of the pressing team’s own defensive third, divided by the number of defensive actions by the pressing team outside of their own defensive third. 
+<br><br>
+A lower figure indicates a higher level of pressing, while a higher figure indicates a lower level of pressing.
+<br><br>
 
--   The feature `start_type` contributed approximately 70% of total model importance.
+::: fragment
+**In short:**
 
--   This describes how the ball carrier got in possession of the ball, which could be an interception, reception, recovery, etc.
+- PPDA measures <u>pressing aggressiveness</u>
 
--   Looking at actual turnovers, pressing the ball carrier when they got the ball from an interception led to a turnover approximately **74%** of the time.
+- Our model measures <u>pressing effectiveness</u>
+:::
+
+::: fragment
+<p> **So why even compare these?** </p>
+:::
+
+## Lower PPDA Correlates with More Turnovers Forced
+```{r ppda-plot}
+#| fig.align: "center"
+#| out-width: "110%"
+
+knitr::include_graphics("ppda_plot.png")
+```
+
+
+## Variable Importance
+
+-   The feature `start_type` contributed approximately **70% of total model importance**.
+
+-   This describes **how the ball carrier got in possession** of the ball.
+
+::: fragment
+-   In the SkillCorner data, there are 14 categorical levels, but we grouped them into 5:
+
+**Reception** ← pass_reception, goal_kick_reception, throw_in_reception, corner_reception, free_kick_reception
+
+**Interception** ← pass_interception, goal_kick_interception, throw_in_interception, corner_interception, free_kick_interception
+
+**Recovery** ← recovery
+
+**Keep Possession** ← keep_possession
+
+**Unknown** ← unknown, missing values
+:::
+
+## 74% of Presses After Interceptions Led to Turnovers
+
+Looking at actual turnovers, pressing the ball carrier when they got the ball from an interception led to a turnover approximately **74%** of the time.
 
 ```{r turnover-rate}
-#| fig-width: 12
-#| fig-height: 7.2
 #| fig.align: "center"
+#| out-width: "100%"
 
-
-trate <- image_read("turnover_start_type.png") |> 
-  image_ggplot(interpolate = TRUE)
-
-trate
+knitr::include_graphics("turnover_start_type.png")
 ```
 
-## Limitations and Future Work
 
-<u>**Limitations:**</u>
+# 
+**Limitations**
 
--   **23% class imbalance** in forced turnovers potentially biases models toward predicting "no turnover".
+-   **Class imbalance** in the dataset (23% turnovers vs. 77% no turnovers) led to models with high accuracy but lower recall for the minority class.
 
 -   **MLS-only data** limits generalizability to leagues with different physical demands and player quality.
 
--   **Tracking data inaccuracies** may affect player position and movement precision.
+- Grouping pressing actions into sequences means this approach **cannot evaluate individual player** pressing effectiveness
 
--   **No individual player skills** such as pace and pressing ability.
-
--   **No pitch control modeling** limits understanding of spatial dominance during pressing.
+-   **Missing values** were flagged or labeled as 'unknown' rather than estimated, which may limit the model's ability to capture underlying patterns.
 
 ::: fragment
-<u>**Future Work:**</u>
+**Future Work**
 
--   Apply **class weights** to handle class imbalance.
+-   Add pressing intensity calculations and pitch control models.
 
--   Extend analysis to **multiple leagues**.
+-   Sensitivity analysis on the 5-second window for pressing effectiveness by testing alternative time thresholds (e.g., 3 seconds, 4 seconds, 6 seconds).
 
--   Add **pressing intensity calculation**.
-
--   Add **pitch control metrics** to account for spatial dominance.
+-   More research on the shape and boundaries of the pressure zone.
 :::
 
-# Thank you
+#
+::::: columns
+::: {.column width="60%"}
+**Acknowledgement:** SkillCorner, Daniel Wicker (Charlotte FC), Dr. Ron Yurko, Quang Nguyen, the CMSACamp TAs, and Carnegie Mellon University - Statistics & Data Science
+<br><br>
 
-# 
+**Contact Information:**
+
+- David Almona: [almonadavid.github.io](https://almonadavid.github.io/)
+
+- Natalie Rayce: [linkedin.com/in/natalie-rayce-318a70283](https://www.linkedin.com/in/natalie-rayce-318a70283/)
+:::
+
+::: {.column width="40%"}
+![](qrcode.png){width=100%}
+:::
+:::::
+
+# Thank You
 
 # Appendix
 
@@ -337,58 +438,22 @@ kable(features,
       caption = "Some features used in the model")
 ```
 
+## A.2 Calibration Plots
 
-## A.3: Oval Pressure Zone Formula
-
-$$
-L = D_{back} + (D_{front} - D_{back})(z^3 + 0.3z) / 1.3 
-$$ where:
-
-$L$ = the maximum distance limit for effective pressure at angle $\theta$ (the radius of the oval-shaped pressure zone at any given angle)
-
-$D_{back}$ = the maximum distance limit when the presser is positioned behind the ball carrier
-
-$D_{front}$ = the maximum distance limit when the presser is positioned in front of the ball carrier
-
-$z$ = $(1 - cos \theta) / 2$
-
-$\theta$ = the angle between the vector from the ball carrier to the center of the attacking goal (which we determined as the threat direction) and the vector from the ball carrier to the presser
-
-Andrienko et al. (2017) determined the distance thresholds $D_{back}$ and $D_{front}$ to be **3m** and **9m**, respectively, based on consultation with football (soccer) experts. He later performed an experiment to verify these parameters.
-
-## A.4: Pressing Pattern
-
-```{r heatmap}
+```{r calibration-plot}
 #| fig.align: "center"
-#| fig-cap: "Heatmap showing the pressing patterns across the MLS 2023 season. The highest concentration of pressing occurs in the middle third of the field on both sides, where teams look to win the ball back in midfield areas to create quick attacking opportunities. Note: the home team is made to always attack left-to-right, the away team goes right-to-left."
+#| out-width: "110%"
 
-heatmap <- image_read("season_press_heatmap.png") |> 
-  image_ggplot(interpolate = TRUE)
-
-heatmap
+knitr::include_graphics("calibration_plot_slides.png")
 ```
 
-## A.5: Team Pressing Performance Rankings
-
-```{r div-plot}
-#| fig.align: "center"
-#| fig-cap: "Positive values (blue) indicate teams forcing more turnovers than predicted, while negative values (red) show underperformance. New York Red Bulls led MLS in pressing effectiveness, while Nashville SC struggled most relative to expectations."
-
-div_plot <- image_read("diverging_plot.png") |> 
-  image_ggplot(interpolate = TRUE)
-
-div_plot
-```
-
-## A.6 Pressing vs. Being Pressed
+## A.3 Pressing vs. Being Pressed
 
 ```{r pressing-pressed}
-#| fig-width: 24
-#| fig-height: 14
+#| out-width: "100%"
 #| fig.align: "center"
 
-plot <- image_read("pressing_vs_pressed_plot.png") |> 
-  image_ggplot(interpolate = TRUE)
-
-plot
+knitr::include_graphics("pressing_vs_pressed_plot.png")
 ```
+
+

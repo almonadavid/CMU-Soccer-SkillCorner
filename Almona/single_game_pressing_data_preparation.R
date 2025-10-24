@@ -1,5 +1,5 @@
 library(tidyverse)
-library(data.table) # Handles large data faster than dplyr
+library(data.table)
 library(jsonlite)
 library(purrr)
 
@@ -98,7 +98,7 @@ ball_carrier_df <- get_ball_carrier(frames, events)
 
 
 #### Press Detection ####
-pressing_results <- detect_pressing_action(tracking_data, ball_carrier_df)
+pressing_results <- detect_pressing_action(tracking_data, ball_carrier_df, home_team_id)
 pressing_sequences <- identify_pressing_sequences(pressing_results)
 
 
@@ -114,7 +114,7 @@ player_possession[, ended_with_turnover :=
 
 #### For each pressing sequence, check if a forced turnover occurred within 5 seconds ####
 forced_turnovers <- player_possession[ended_with_turnover == TRUE]
-frame_window <- 50 # 50 frames == 5 seconds
+frame_window <- 50 # 5 seconds
 
 pressing_sequences[, forced_turnover_within_5s := FALSE]
 
@@ -215,35 +215,16 @@ pressing_sequences[ball_carrier_positions,
 
 
 #### Calculating distances to sideline/endline ####
-
 X_MIN <- -52.5  # Left goal line
 X_MAX <- 52.5   # Right goal line  
 Y_MIN <- -34    # Bottom sideline
 Y_MAX <- 34     # Top sideline
 
 pressing_sequences[, `:=`(
-  # Distance to nearest sideline
   dist_to_nearest_sideline = pmin(abs(ball_carrier_y - Y_MIN), abs(ball_carrier_y - Y_MAX)),
-  
-  # Distance to nearest endline
-  dist_to_nearest_endline = pmin(
-    abs(ball_carrier_x - X_MIN), 
-    abs(ball_carrier_x - X_MAX)
-  ),
-  
-  # Distance to attacking endline
-  dist_to_attacking_endline = ifelse(
-    possession_team == home_team_id,
-    abs(ball_carrier_x - X_MAX),
-    abs(ball_carrier_x - X_MIN) 
-  ),
-  
-  # Distance to defending endline
-  dist_to_defending_endline = ifelse(
-    possession_team == home_team_id, 
-    abs(ball_carrier_x - X_MIN),
-    abs(ball_carrier_x - X_MAX)
-  )
+  dist_to_nearest_endline = pmin(abs(ball_carrier_x - X_MIN), abs(ball_carrier_x - X_MAX)),
+  dist_to_attacking_endline = ifelse(possession_team == home_team_id, abs(ball_carrier_x - X_MAX), abs(ball_carrier_x - X_MIN)),
+  dist_to_defending_endline = ifelse(possession_team == home_team_id, abs(ball_carrier_x - X_MIN), abs(ball_carrier_x - X_MAX))
 )]
 
 #### Calculate number of defenders within various radii ####

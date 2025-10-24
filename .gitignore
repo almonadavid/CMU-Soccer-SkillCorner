@@ -3,6 +3,7 @@
 *.Rproj
 *.Rhistory
 *.Rproj.user
+*.html
 
 .Rproj.user
 .DS_Store
