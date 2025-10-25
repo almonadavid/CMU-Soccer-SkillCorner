@@ -13,10 +13,9 @@
 data/
 results/
 model_results/
+defenders/
 logs/
 /Almona/initial trial with bundesliga data/
 /Almona/EDA/
 animation.R
 tidymodels_modeling.R
-
-"defenders/*.csv" 
