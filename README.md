@@ -37,4 +37,4 @@ This project analyzes MLS matches to predict forced turnovers from pressing sequ
 Special thanks to [Daniel Wicker](https://www.linkedin.com/in/daniel-wicker/) (Charlotte FC), [Dr. Ron Yurko](https://www.linkedin.com/in/ron-yurko-stats/), [Quang Nguyen](https://www.linkedin.com/in/qntkhvn/), the CMSACamp TAs, and Carnegie Mellon University.
 
 ## Resources
-[Slides](https://www.stat.cmu.edu/cmsac/sure/2025/showcase/soccer_tracking/slides.html) | [Poster](https://www.stat.cmu.edu/cmsac/sure/2025/showcase/soccer_tracking/poster.pdf) | [Report](https://www.stat.cmu.edu/cmsac/sure/2025/showcase/soccer_tracking/report.html)
+[Slides](https://almonadavid.github.io/projects/CMSACamp/Final_Presentation.html) | [Poster](https://almonadavid.github.io/projects/CMSACamp/CMSACamp_Poster.pdf) | [Report](https://almonadavid.github.io/projects/CMSACamp/Capstone_Report.html)
