@@ -180,27 +180,11 @@ XGBoost achieved the best performance with the lowest log loss (0.434) and highe
 knitr::include_graphics("Visualizations/model_summary.png")
 ```
 
-At first glance, the performance difference between XGBoost and logistic regression appears negligible. To determine whether this difference is statistically meaningful, we compared the log loss of the two models using a z-score test:
+At first glance, the performance difference between XGBoost and logistic regression appears small. To determine whether this difference is statistically meaningful, we compared the models using a paired t-test on the log loss on each fold.
 
-$$
-|z| = \frac{|\bar{x}_{xgboost} - \bar{x}_{logit}|}{\sqrt{SE^2_{xgboost} + SE^2_{logit}}}
-$$
+The mean difference in log loss (XGBoost − logistic regression) was −0.0156, indicating that XGBoost achieved lower log loss across folds. A paired t-test confirms this difference is statistically significant, with a 95% confidence interval of [−0.0161, −0.0152].
 
-$$
-= \frac{|0.434 - 0.445|}{\sqrt{0.00263^2 + 0.00255^2}}
-$$
-
-$$
-= \frac{0.011}{0.00366}
-$$
-
-$$
-= 3.02
-$$
-
-XGBoost's average log loss is lower than logistic regression's by approximately 0.011, which is 3.02 standard errors apart. This implies a statistically significant difference in performance between the two models.
-
-While logistic regression offers greater interpretability and simplicity, XGBoost's statistically significant improvement and ability to capture complex non-linear relationships make it the preferred choice for generating our pressing effectiveness metrics. We use XGBoost for all subsequent team-level analyses.
+While logistic regression offers greater interpretability and simplicity, the consistently lower log loss of XGBoost and its ability to capture complex non-linear relationships make it the preferred choice for generating our pressing effectiveness metrics. We use XGBoost for all subsequent team-level analyses.
 
 ##### <u>Model Calibration</u>
 

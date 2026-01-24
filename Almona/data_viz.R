@@ -48,13 +48,13 @@ pressing_data <- pressing_data |>
     ball_carrier_speed_missing = factor(ball_carrier_speed_missing),
     minutes_remaining_half = ifelse(is.na(minutes_remaining_half), median(minutes_remaining_half, na.rm = TRUE), minutes_remaining_half),
     minutes_remaining_game = ifelse(is.na(minutes_remaining_game), median(minutes_remaining_game, na.rm = TRUE), minutes_remaining_game)
+  ) |> 
+  mutate(
+    start_type = fct_relevel(start_type, "unknown"),
+    poss_third_start = fct_relevel(poss_third_start, "defensive_third"),
+    incoming_high_pass = fct_relevel(incoming_high_pass, "unknown"),
+    incoming_pass_range_received = fct_relevel(incoming_pass_range_received, "unknown")
   )
-  # mutate(
-  #   start_type = fct_relevel(start_type, "unknown"),
-  #   poss_third_start = fct_relevel(poss_third_start, "defensive_third"),
-  #   incoming_high_pass = fct_relevel(incoming_high_pass, "unknown"),
-  #   incoming_pass_range_received = fct_relevel(incoming_pass_range_received, "unknown")
-  # )
 
 
 ## 1. Season Pressing Heatmap ####################################################################################################
@@ -201,54 +201,11 @@ pressing_team |>
        fill = "") +
   theme_bw(base_size = 14)
 
-# xP vs xP Diff
-pressing_team |>
-  mutate(
-    xP_per_game = expected_turnovers / games_played,
-    xP_diff_per_game = xp_diff_per_game
-  ) |>
-  ggplot(aes(x = xP_per_game, y = xP_diff_per_game)) +
-  geom_hline(yintercept = 0, linetype = "dashed", alpha = 0.5) +
-  geom_vline(xintercept = median(pressing_team$expected_turnovers/pressing_team$games_played), 
-             linetype = "dashed", alpha = 0.5) +
-  geom_point(alpha = 0.7) +
-  ggrepel::geom_text_repel(
-    aes(label = pressing_team_name),
-    size = 3
-  ) +
-  labs(title = "MLS Team Pressing Profile: Volume vs Effectiveness",
-       subtitle = "2023 Season",
-       x = "Expected Turnovers Forced per Game (Pressing Volume)",
-       y = "Actual - Expected per Game (Pressing Effectiveness)") +
-  theme_bw()
-
-
-library(ggimage)
-
-# add logos
-pressing_team <- pressing_team |>
-  mutate(
-    xP_per_game = expected_turnovers / games_played,
-    xP_diff_per_game = xp_diff_per_game,
-    logo_path = paste0("logos/", pressing_team_name, ".png")
-  )
-
-ggplot(pressing_team, aes(x = xP_per_game, y = xP_diff_per_game)) +
-  geom_hline(yintercept = 0, linetype = "dashed", alpha = 0.5) +
-  geom_vline(xintercept = median(pressing_team$xP_per_game), 
-             linetype = "dashed", alpha = 0.5) +
-  ggimage::geom_image(aes(image = logo_path), size = 0.07) +
-  labs(
-    x = "Expected Turnovers Forced per Game (Pressing Volume)",
-    y = "Actual - Expected per Game (Pressing Effectiveness)"
-  ) +
-  theme_bw(base_size = 14)
-
 
 ## 4. Save Model SUm Stats table ###############################################################
 library(gt)
 
-model_summary_gt <- cleaned_summary |>
+model_summary_gt <- cleaned_summary |> # filter(type %in% c("Logistic", "XGBoost")) |>
   gt() |>
   # tab_header(title = md("**Model Performance Summary**")) |>
   cols_label(
@@ -271,7 +228,7 @@ model_summary_gt <- cleaned_summary |>
     locations = cells_column_labels(columns = everything())
   )
 
-gtsave(model_summary_gt, "model_summary.png")
+gtsave(model_summary_gt, "Visualizations/model_summary.png")
 
 
 ## 5. Turnover rate by start_type table #######################################################
@@ -419,7 +376,7 @@ ggplot(aes(x = xp_diff_per_game, y = opta_ppda), data = pressing_team) +
   theme_bw(base_size = 14)
 
 
-###
+### 8. The Pressure ZOne Angle ##################################################################################
 
 library(ggforce)
 
@@ -477,3 +434,47 @@ ggplot() +
   scale_y_continuous(limits = c(-34, 34)) +
   theme_void(base_size = 16) +
   theme(legend.position = "none")
+
+
+### 8. Confidence Interval Plot ##################################################################################
+
+test_pred_all <- fread("model_results/test_pred_all.csv") |> as_tibble()
+fold_logloss <- test_pred_all |>
+  pivot_longer(logit_pred:xg_pred, 
+               names_to = "model", 
+               values_to = "pred") |>
+  group_by(model, test_fold) |>
+  summarize(
+    log_loss = -mean(test_actual * log(pred + 1e-15) + (1 - test_actual) * log(1 - pred)),
+    .groups = "drop"
+  )
+
+
+ttest_results <- fold_logloss |>
+  inner_join(fold_logloss, by = "test_fold") |>
+  filter(model.y < model.x) |>
+  mutate(diff = log_loss.x - log_loss.y) |>
+  group_by(model1 = model.x, model2 = model.y) |>
+  summarize(
+    mean_diff = mean(diff),
+    conf_low  = t.test(diff, mu = 0)$conf.int[1],
+    conf_high = t.test(diff, mu = 0)$conf.int[2],
+    .groups = "drop"
+  )
+
+
+ttest_results |>
+  mutate(comparison = paste(gsub("_pred","", model1), "−", gsub("_pred","", model2))) |>
+  ggplot(aes(x = reorder(comparison, mean_diff),y = mean_diff)) +
+  geom_point(size = 3) +
+  geom_errorbar(aes(ymin = conf_low, ymax = conf_high), width = 0.2) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+  coord_flip() +
+  labs(
+    # title = "Paired Model Comparisons (Mean Log-Loss Differences)",
+    # subtitle = "Points show mean fold-level difference; bars show 95% CI",
+    y = "Mean Log-Loss Difference (Model1 − Model2)",
+    x = ""
+  ) +
+  theme_bw(base_size = 30) # 20
+

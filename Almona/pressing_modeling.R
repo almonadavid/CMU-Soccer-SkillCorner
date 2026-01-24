@@ -50,13 +50,13 @@ pressing_data <- pressing_data |>
     ball_carrier_speed_missing = factor(ball_carrier_speed_missing),
     minutes_remaining_half = ifelse(is.na(minutes_remaining_half), median(minutes_remaining_half, na.rm = TRUE), minutes_remaining_half),
     minutes_remaining_game = ifelse(is.na(minutes_remaining_game), median(minutes_remaining_game, na.rm = TRUE), minutes_remaining_game)
+  ) |> 
+  mutate(
+    start_type = fct_relevel(start_type, "unknown"),
+    poss_third_start = fct_relevel(poss_third_start, "defensive_third"),
+    incoming_high_pass = fct_relevel(incoming_high_pass, "unknown"),
+    incoming_pass_range_received = fct_relevel(incoming_pass_range_received, "unknown")
   )
-  # mutate(
-  #   start_type = fct_relevel(start_type, "unknown"),
-  #   poss_third_start = fct_relevel(poss_third_start, "defensive_third"),
-  #   incoming_high_pass = fct_relevel(incoming_high_pass, "unknown"),
-  #   incoming_pass_range_received = fct_relevel(incoming_pass_range_received, "unknown")
-  # )
 
 
 ## LOGIT, XGBOOST and other models ###################################################################################
@@ -107,7 +107,7 @@ pressing_data <- create_match_index(pressing_data, N_FOLDS) |> select(-game_id)
 #                    summaryFunction = twoClassSummary
 #                  ),
 #                  method = "xgbTree",
-#                  metric = "ROC" )
+#                  metric = "ROC")
 # 
 # # save and re-load
 # saveRDS(xg_tune, "model_results/xg_tune_results.rds")
@@ -210,7 +210,7 @@ test_pred_all |>
     y = "Actual Turnover Rate"
   ) +
   coord_fixed(xlim = c(0, 1), ylim = c(0, 1)) +
-  theme_bw()
+  theme_bw() # base_size = 16
 
 
 
@@ -270,12 +270,18 @@ cleaned_summary <- summary |>
 
 
 # xg vs logit
-summary |> 
-  summarise(
-    log_loss_diff = log_loss_mean[type == "xg_pred"] - log_loss_mean[type == "logit_pred"],
-    se_diff = sqrt(log_loss_se[type == "xg_pred"]^2 + log_loss_se[type == "logit_pred"]^2),
-    z_score = log_loss_diff / se_diff
-  )
+folds_summary <- test_pred_all |>
+  pivot_longer(logit_pred:xg_pred, 
+               names_to = "type", 
+               values_to = "test_pred") |>
+  group_by(type, test_fold) |>
+  summarize(
+    log_loss = -mean(test_actual * log(test_pred + 1e-15) + (1 - test_actual) * log(1 - test_pred)),
+    .groups = "drop"
+  ) |> 
+  pivot_wider(names_from = type, values_from = log_loss)
+
+t.test(folds_summary$xg_pred, folds_summary$logit_pred, paired = TRUE) #confidence interval plot is in data_viz.R
 
 
 
@@ -300,6 +306,6 @@ importance |>
     x = "Feature",
     y = "Gain"
   ) +
-  theme_bw(base_size = 14)
+  theme_bw(base_size = 22)
 
 
